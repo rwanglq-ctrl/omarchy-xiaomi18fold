@@ -13,7 +13,8 @@
 #
 # Extra options passed through: --rootfs DIR, --no-display-hook, --no-home-binds (host),
 # --no-aur (container). Environment: OMARCHY_ALARM_REPO / OMARCHY_ALARM_REF select what a
-# piped (curl | bash) run clones.
+# piped (curl | bash) run clones; OMARCHY_ALARM_ARCHIVE_URL overrides the archive download
+# used when git is missing or git clone fails.
 
 set -euo pipefail
 
@@ -41,6 +42,7 @@ Usage: install.sh [--dry-run] [--user NAME] [--profile core|full] [--yes]
   --rootfs DIR       container rootfs on a Debian host (default: /var/lib/machines/arch)
   --no-display-hook  Debian host: do not hook the Android Terminal display (weston.service)
   --no-home-binds    Debian host: do not share ~/Downloads ~/Pictures ~/Videos ~/Work
+  --mirror MODE      global (default), cn, or auto; also MIRROR environment
   --no-aur           container: skip yay and AUR packages
 EOF
 }
@@ -63,16 +65,22 @@ find_repo() {
 }
 
 bootstrap() {
-  local tmp
+  local tmp archive
+  if [[ ${MIRROR:-global} == cn && -z ${OMARCHY_ALARM_REPO:-} ]]; then
+    die "CN bootstrap requires a local checkout or OMARCHY_ALARM_REPO pointing to your reachable trusted mirror. No public CN mirror has been published."
+  fi
   tmp=$(mktemp -d "${TMPDIR:-/tmp}/omarchy-alarm-nspawn.XXXXXX")
   log "not running from a checkout; fetching $REPO_URL ($REPO_REF) into $tmp"
-  if command -v git >/dev/null; then
-    git clone --quiet --depth 1 --branch "$REPO_REF" "$REPO_URL" "$tmp/repo"
-  elif command -v curl >/dev/null; then
-    mkdir -p "$tmp/repo"
-    curl -fsSL "$REPO_URL/archive/$REPO_REF.tar.gz" | tar -xz --strip-components=1 -C "$tmp/repo"
+  if command -v git >/dev/null && timeout 300 git clone --quiet --depth 1 --branch "$REPO_REF" "$REPO_URL" "$tmp/repo"; then
+    :
   else
-    die "need git or curl to fetch $REPO_URL"
+    command -v curl >/dev/null || die "need git or curl to fetch $REPO_URL"
+    rm -rf "$tmp/repo"
+    mkdir -p "$tmp/repo"
+    archive=${OMARCHY_ALARM_ARCHIVE_URL:-$REPO_URL/archive/$REPO_REF.tar.gz}
+    warn "git missing or git clone failed; downloading $archive instead"
+    curl -fsSL --connect-timeout 5 --max-time 300 --retry 2 "$archive" | tar -xz --strip-components=1 -C "$tmp/repo" \
+      || die "could not fetch $REPO_URL. Set OMARCHY_ALARM_REPO / OMARCHY_ALARM_ARCHIVE_URL to a reachable trusted mirror, or run from a local checkout"
   fi
   [[ -f $tmp/repo/install.sh ]] || die "fetched repo has no install.sh"
   export OMARCHY_ALARM_BOOTSTRAPPED=1
@@ -118,6 +126,8 @@ main() {
       --rootfs) [[ $# -ge 2 ]] || die "--rootfs needs a value"; rootfs=$2; shift ;;
       --rootfs=*) rootfs=${1#*=} ;;
       --no-display-hook|--no-home-binds) host_extra+=("$1") ;;
+      --mirror) [[ $# -ge 2 ]] || die "--mirror needs a value"; export MIRROR=$2; shift ;;
+      --mirror=*) export MIRROR=${1#*=} ;;
       --no-aur) container_extra+=("$1") ;;
       -h|--help) usage; exit 0 ;;
       *) usage >&2; die "unknown option: $1" 2 ;;
@@ -129,8 +139,13 @@ main() {
   fi
   [[ -n $profile ]] && container_extra=(--profile "$profile" "${container_extra[@]}")
 
+  case ${MIRROR:-global} in cn|global|auto) ;; *) die "MIRROR must be cn, global or auto" 2 ;; esac
   REPO_DIR=""
   find_repo "${all_args[@]}"
+  # shellcheck source=lib/network.sh
+  source "$REPO_DIR/lib/network.sh"
+  export NETWORK_DRY_RUN=$dry
+  network_init
   detect_os
   (( dry )) && log "DRY RUN — nothing will be changed"
   log "repo: $REPO_DIR"
@@ -183,13 +198,13 @@ run_debian() {
   if (( dry )); then
     "${host_cmd[@]}" --dry-run
   else
-    "${sudo[@]}" "${host_cmd[@]}"
+    "${sudo[@]}" env MIRROR="$MIRROR" "${host_cmd[@]}"
   fi
 
   local chome=/home/$user
   local nspawn=("${sudo[@]}" env SYSTEMD_NSPAWN_LOCK=0 systemd-nspawn -q -D "$rootfs" --register=no
     --resolv-conf=copy-host -u "$user" --chdir="$chome"
-    --setenv=HOME="$chome" --setenv=LANG=en_US.UTF-8 --setenv=TERM="${TERM:-xterm-256color}")
+    --setenv=MIRROR="$MIRROR" --setenv=HOME="$chome" --setenv=LANG=en_US.UTF-8 --setenv=TERM="${TERM:-xterm-256color}")
   [[ -t 0 ]] || nspawn+=(--console=pipe)
   nspawn+=(bash "$CONTAINER_REPO/container/install.sh" "${container_extra[@]}")
 

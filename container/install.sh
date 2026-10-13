@@ -7,11 +7,13 @@ dry_run=false
 no_aur=false
 target_user=''
 usage() {
-  echo 'Usage: container/install.sh [--dry-run] [--profile core|full] [--no-aur] [--user NAME]'
+  echo 'Usage: container/install.sh [--dry-run] [--profile core|full] [--no-aur] [--user NAME] [--mirror cn|global|auto]'
   echo 'Optional full profile: OMARCHY_ALARM_INSTALL_MISE=1 installs mise using its official installer.'
 }
 while (($#)); do
   case "$1" in
+    --mirror) (($# >= 2)) || exit 2; MIRROR=$2; shift 2 ;;
+    --mirror=*) MIRROR=${1#*=}; shift ;;
     --dry-run) dry_run=true; shift ;;
     --no-aur) no_aur=true; shift ;;
     --profile|--user)
@@ -23,6 +25,14 @@ while (($#)); do
   esac
 done
 [[ $profile == core || $profile == full ]] || { usage >&2; exit 2; }
+
+# shellcheck source=../lib/network.sh
+source "$ROOT/lib/network.sh"
+NETWORK_DRY_RUN=$($dry_run && echo 1 || echo 0) network_init
+if [[ $MIRROR == cn ]]; then
+  no_aur=true
+  echo "CN mode: AUR builds and optional mise downloads are skipped; repository fonts and stock Rime remain available."
+fi
 
 step() {
   local function=$1 description=$2
@@ -51,6 +61,16 @@ install_repo_packages() {
   local -a names
   mapfile -t names < <(packages repo)
   # A full upgrade avoids unsupported Arch partial upgrades.
+  if [[ $MIRROR == cn ]]; then
+    local mirrors
+    mirrors=$(mktemp)
+    network_pacman_config "$mirrors"
+    if ! as_root test -e /etc/pacman.d/mirrorlist.omarchy-original; then
+      as_root cp -p /etc/pacman.d/mirrorlist /etc/pacman.d/mirrorlist.omarchy-original
+    fi
+    as_root install -m644 "$mirrors" /etc/pacman.d/mirrorlist
+    rm -f "$mirrors" "$mirrors.omarchy-original"
+  fi
   as_root pacman -Syu --needed --noconfirm "${names[@]}"
 }
 configure_build_directories() {
@@ -70,7 +90,9 @@ install_aur_packages() {
   local buildroot="$HOME/.cache/omarchy-alarm/aur" package
   mkdir -p "$buildroot"
   if ! command -v yay >/dev/null 2>&1; then
-    if [[ ! -d $buildroot/yay ]]; then git clone https://aur.archlinux.org/yay.git "$buildroot/yay"; fi
+    if [[ ! -d $buildroot/yay ]]; then
+      GIT_HTTP_LOW_SPEED_LIMIT=1000 GIT_HTTP_LOW_SPEED_TIME=60 timeout 120 git clone https://aur.archlinux.org/yay.git "$buildroot/yay"
+    fi
     (cd "$buildroot/yay" && makepkg --syncdeps --install --needed --noconfirm)
   fi
   while IFS= read -r package; do
@@ -78,7 +100,9 @@ install_aur_packages() {
     if pacman -Q "$package" >/dev/null 2>&1; then continue; fi
     case "$package" in
       tensaku|omawrite)
-        if [[ ! -d $buildroot/$package ]]; then git clone "https://aur.archlinux.org/$package.git" "$buildroot/$package"; fi
+        if [[ ! -d $buildroot/$package ]]; then
+          GIT_HTTP_LOW_SPEED_LIMIT=1000 GIT_HTTP_LOW_SPEED_TIME=60 timeout 120 git clone "https://aur.archlinux.org/$package.git" "$buildroot/$package"
+        fi
         (cd "$buildroot/$package" && makepkg --ignorearch --syncdeps --install --needed --noconfirm) ;;
       *) yay -S --needed --noconfirm "$package" ;;
     esac
@@ -88,7 +112,8 @@ clone_and_patch_omarchy() {
   local expected actual patch_file patch_id applied_ids
   expected=$(tr -d '\n' < "$ROOT/patches/BASE")
   if [[ ! -e $OMARCHY_PATH ]]; then
-    git clone --branch v4.0.4 --depth 1 https://github.com/basecamp/omarchy.git "$OMARCHY_PATH"
+    if [[ $MIRROR == cn ]]; then network_unpack_omarchy "$ROOT" "$OMARCHY_PATH"
+    else timeout 120 git clone --branch v4.0.4 --depth 1 https://github.com/basecamp/omarchy.git "$OMARCHY_PATH"; fi
   fi
   actual=$(git -C "$OMARCHY_PATH" rev-parse 'v4.0.4^{commit}')
   [[ $actual == "$expected" ]] || {
@@ -191,12 +216,13 @@ configure_stay_awake() {
   OMARCHY_INSTALL_USER=$(id -un) "$OMARCHY_PATH/bin/omarchy-apply-lock"
 }
 install_optional_mise() {
+  if [[ $MIRROR == cn ]]; then echo "Optional mise installer skipped in CN mode."; return; fi
   if [[ $profile != full || ${OMARCHY_ALARM_INSTALL_MISE:-0} != 1 ]]; then
     echo 'Optional mise skipped (enable with full profile and OMARCHY_ALARM_INSTALL_MISE=1).'; return
   fi
   if [[ ! -x $HOME/.local/bin/mise ]]; then
     local installer="$HOME/.cache/omarchy-alarm/mise-installer.sh"
-    curl --fail --show-error --location https://mise.run -o "$installer"
+    curl --fail --show-error --location --connect-timeout 5 --max-time 120 --retry 2 https://mise.run -o "$installer"
     MISE_INSTALL_PATH="$HOME/.local/bin/mise" bash "$installer"
   fi
 }
@@ -207,7 +233,7 @@ if ! $dry_run; then
     args=(--profile "$profile")
     if $no_aur; then args+=(--no-aur); fi
     exec runuser -u "$target_user" -- env HOME="$(getent passwd "$target_user" | cut -d: -f6)" \
-      OMARCHY_ALARM_INSTALL_MISE="${OMARCHY_ALARM_INSTALL_MISE:-0}" bash "$ROOT/container/install.sh" "${args[@]}"
+      MIRROR="$MIRROR" OMARCHY_ALARM_INSTALL_MISE="${OMARCHY_ALARM_INSTALL_MISE:-0}" bash "$ROOT/container/install.sh" "${args[@]}"
   fi
   [[ -z $target_user || $target_user == "$(id -un)" ]] || { echo '--user must match the current user.' >&2; exit 2; }
   mkdir -p "$HOME/.cache/omarchy-alarm"

@@ -24,7 +24,6 @@ ALARM_URL=${OMARCHY_ALARM_TARBALL_URL:-http://os.archlinuxarm.org/os/ArchLinuxAR
 # (published on archlinuxarm.org), written in the usual groups of four.
 ALARM_KEY="68B3 537F 39A3 13B3 E574  D067 7719 3F15 2BDB E6A6"
 ALARM_KEY=${ALARM_KEY// /}
-ALARM_KEYSERVER=${OMARCHY_ALARM_KEYSERVER:-hkps://keyserver.ubuntu.com}
 CACHE_DIR=${OMARCHY_ALARM_CACHE:-/var/cache/omarchy-alarm-nspawn}
 DEFAULT_HOME_BINDS="Downloads Pictures Videos Work"
 LAUNCHERS=(arch-hyprland archbox archsh hypr-switch hypr-session)
@@ -44,6 +43,7 @@ usage() {
 Usage: host/install.sh [--dry-run] [--user NAME] [--rootfs DIR] [--no-display-hook]
                        [--no-home-binds] [--yes] [--render-only DIR]
 
+  --mirror MODE      cn, global (default), or auto; also MIRROR environment
   --dry-run          print every action; change nothing (no root or network needed)
   --user NAME        host user to mirror into the container (default: $SUDO_USER or $USER)
   --rootfs DIR       container root filesystem (default: /var/lib/machines/arch)
@@ -74,6 +74,8 @@ run() {
 ORIG_ARGS=("$@")
 while (( $# )); do
   case "$1" in
+    --mirror) [[ $# -ge 2 ]] || die "--mirror needs a value"; MIRROR=$2; shift ;;
+    --mirror=*) MIRROR=${1#*=} ;;
     --dry-run) DRY_RUN=1 ;;
     --yes|-y) YES=1 ;;
     --no-display-hook) DISPLAY_HOOK=0 ;;
@@ -89,6 +91,13 @@ while (( $# )); do
   esac
   shift
 done
+
+# shellcheck source=../lib/network.sh
+source "$SCRIPT_DIR/../lib/network.sh"
+export NETWORK_DRY_RUN=$DRY_RUN
+[[ -z $RENDER_DIR ]] || NETWORK_DRY_RUN=1
+network_init
+network_select_alarm
 
 [[ $ROOTFS == /* ]] || die "--rootfs must be an absolute path: $ROOTFS"
 ROOTFS=${ROOTFS%/}
@@ -170,7 +179,7 @@ fi
 if (( ! DRY_RUN )) && [[ $EUID -ne 0 ]]; then
   command -v sudo >/dev/null || die "must run as root (sudo is not installed)"
   log "re-running with sudo"
-  exec sudo bash "${BASH_SOURCE[0]}" "${ORIG_ARGS[@]}" --user "$TARGET_USER"
+  exec sudo env MIRROR="$MIRROR" bash "${BASH_SOURCE[0]}" "${ORIG_ARGS[@]}" --user "$TARGET_USER"
 fi
 
 (( DRY_RUN )) && log "DRY RUN — nothing will be changed"
@@ -194,14 +203,15 @@ elif [[ $os_ver != 13 ]]; then
 fi
 
 # --- 1. apt dependencies ---------------------------------------------------------------
+if (( ! DRY_RUN )); then network_apt_config; fi
 log "1/7 apt packages: ${APT_PACKAGES[*]}"
 missing=()
 for p in "${APT_PACKAGES[@]}"; do
   dpkg-query -W -f='${Status}' "$p" 2>/dev/null | grep -q 'install ok installed' || missing+=("$p")
 done
 if (( ${#missing[@]} )); then
-  run env DEBIAN_FRONTEND=noninteractive apt-get update
-  run env DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends "${missing[@]}"
+  run network_apt_update
+  run env DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=15 -o Acquire::https::Timeout=15 install -y --no-install-recommends "${missing[@]}"
 else
   note "all installed"
 fi
@@ -253,29 +263,20 @@ fi
 fetch_rootfs() {
   local tarball=$CACHE_DIR/${ALARM_URL##*/}
   run mkdir -p "$CACHE_DIR"
-  run curl -fL --retry 3 -o "$tarball.md5" "$ALARM_URL.md5"
   if (( DRY_RUN )); then
-    run curl -fL --retry 3 -C - -o "$tarball" "$ALARM_URL"
+    run network_fetch "$tarball.md5" "$ALARM_URL.md5"
+    run network_fetch "$tarball" "$ALARM_URL"
     printf '  + (verify md5 of %s)\n' "$tarball"
   else
-    local want
-    want=$(awk '{print $1; exit}' "$tarball.md5")
-    [[ $want =~ ^[0-9a-f]{32}$ ]] || die "bad checksum file from $ALARM_URL.md5"
-    if [[ -f $tarball ]] && [[ $(md5sum "$tarball" | awk '{print $1}') == "$want" ]]; then
-      note "cached download is current: $tarball"
-    else
-      rm -f "$tarball"
-      run curl -fL --retry 3 -o "$tarball" "$ALARM_URL"
-      [[ $(md5sum "$tarball" | awk '{print $1}') == "$want" ]] || die "md5 mismatch for $tarball (delete it and retry)"
-      note "md5 OK"
-    fi
+    network_download_rootfs "$tarball"
+    note "md5 OK: $ALARM_URL"
   fi
   verify_gpg "$tarball"
   TARBALL=$tarball
 }
 
 # Signature check with the ALARM build key in a throwaway keyring. A bad signature is fatal;
-# no gpg or no keyserver only warns (the md5 above still guards against corrupt downloads).
+# no gpg or unavailable signature only warns (the md5 above still guards against corrupt downloads).
 verify_gpg() {
   local tarball=$1 gh status
   if ! command -v gpg >/dev/null; then
@@ -284,16 +285,16 @@ verify_gpg() {
   fi
   if (( DRY_RUN )); then
     run curl -fL --retry 3 -o "$tarball.sig" "$ALARM_URL.sig"
-    printf '  + gpg --recv-keys %s && gpg --verify %q %q\n' "$ALARM_KEY" "$tarball.sig" "$tarball"
+    printf '  + gpg --import %q && gpg --verify %q %q\n' "$SCRIPT_DIR/../vendor/alarm-build-key.asc" "$tarball.sig" "$tarball"
     return 0
   fi
-  if ! curl -fsL --retry 3 -o "$tarball.sig" "$ALARM_URL.sig"; then
+  if ! curl -fsL --connect-timeout 5 --max-time 30 --retry 2 -o "$tarball.sig" "$ALARM_URL.sig"; then
     warn "could not download $ALARM_URL.sig; skipping the signature check"
     return 0
   fi
   gh=$(mktemp -d)
-  if ! gpg --homedir "$gh" --batch --quiet --keyserver "$ALARM_KEYSERVER" --recv-keys "$ALARM_KEY" >/dev/null 2>&1; then
-    warn "could not fetch the Arch Linux ARM signing key from $ALARM_KEYSERVER; skipping the signature check"
+  if ! gpg --homedir "$gh" --batch --quiet --import "$SCRIPT_DIR/../vendor/alarm-build-key.asc" >/dev/null 2>&1; then
+    warn "could not import the vendored Arch Linux ARM signing key; skipping the signature check"
     rm -rf "$gh"; return 0
   fi
   status=$(gpg --homedir "$gh" --batch --status-fd 1 --verify "$tarball.sig" "$tarball" 2>/dev/null || true)
@@ -327,6 +328,10 @@ if [[ $rootfs_state != arch ]]; then
   run mkdir -p "$ROOTFS"
   run chmod 755 "$ROOTFS"
   run bsdtar -xpf "${TARBALL:-$CACHE_DIR/${ALARM_URL##*/}}" -C "$ROOTFS"
+fi
+
+if [[ $MIRROR == cn ]]; then
+  if (( DRY_RUN )); then note "configure mainland pacman mirrors before first pacman sync"; else network_pacman_config "$ROOTFS/etc/pacman.d/mirrorlist"; fi
 fi
 
 # --- 5. inside the container -----------------------------------------------------------

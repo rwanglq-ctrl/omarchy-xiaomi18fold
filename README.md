@@ -62,6 +62,28 @@
 curl -fsSL https://raw.githubusercontent.com/rwanglq-ctrl/omarchy-xiaomipad9pm/main/install.sh | bash
 ```
 
+### 国内网络安装
+
+版本：`0.2.0`。先从可信渠道取得**完整源码包或本地 checkout（包含 vendor/）**，进入项目目录，一行安装：
+
+```bash
+MIRROR=cn bash ./install.sh --profile core
+```
+
+也可使用 `--mirror cn`；`--mirror auto` 短探测 github.com 与 raw.githubusercontent.com
+（两者都可达才选 `global`），并打印所选模式；`--dry-run` 不探测、按 `global` 预览。
+默认 `global` 保持海外安装方式。国内模式使用阿里云/清华/中科大 Debian 源，
+清华/中科大/北外/交大 ALARM rootfs 和 pacman 源；原有软件源会备份。
+Omarchy v4.0.4 已随源码附带，安装时无需访问 GitHub。
+国内模式跳过 AUR/yay 和可选 mise，保留仓库字体及默认 Rime 中文输入；
+full 中的 AUR 应用也会跳过。不要把 `MIRROR=cn` 放在 curl 左侧误以为能改变下载地址。
+
+**本项目尚未发布独立的国内源码镜像**，GitHub raw 的一键引导在被封锁网络下仍不可用。
+可将完整源码包传入 Android Linux Terminal，或设置 `OMARCHY_ALARM_REPO` 为你信任且可达的 Git 镜像
+（引导阶段的归档下载地址可用 `OMARCHY_ALARM_ARCHIVE_URL` 覆盖）。
+第三方 GitHub 代理不作为默认依赖。完整审计及测试限制见 [国内网络审计](docs/china-network.md)。
+
+
 或者克隆仓库后手动运行：
 
 ```bash

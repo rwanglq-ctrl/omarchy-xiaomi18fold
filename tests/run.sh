@@ -14,6 +14,7 @@ scripts() {
   find "$ROOT" -path "$ROOT/.git" -prune -o -type f \( -name '*.sh' -o -path "$ROOT/host/bin/*" -o -path "$ROOT/container/bin/*" \) -print0
 }
 names() { sed -e 's/#.*//' -e '/^[[:space:]]*$/d' "$@" | sort -u; }
+check_mirrors() { bash "$ROOT/tests/mirrors.sh"; }
 check_syntax() {
   local f
   while IFS= read -r -d '' f; do bash -n "$f"; done < <(scripts)
@@ -131,14 +132,14 @@ check_hygiene() {
       target=$(realpath -m -- "$f")
       case "$target" in "$ROOT"/*) ;; *) echo "External symlink: ${f#"$ROOT/"}"; bad=1 ;; esac
     elif [[ -f $f ]]; then
-      if (( $(stat -c %s "$f") > 1000000 )); then echo "Oversize: ${f#"$ROOT/"}"; bad=1; fi
+      if [[ $f != "$ROOT"/vendor/omarchy-v4.0.4.git.tar.gz.part-* ]] && (( $(stat -c %s "$f") > 1000000 )); then echo "Oversize: ${f#"$ROOT/"}"; bad=1; fi
       case "$f" in *.bak*) echo "Backup: ${f#"$ROOT/"}"; bad=1 ;; esac
     fi
   done < <(find "$ROOT" -path "$ROOT/.git" -prune -o -print0)
   return "$bad"
 }
 if [[ ${1:-} == --check ]]; then
-  case "${2:-}" in syntax|shellcheck|privacy|privacy_selftest|patches|repo_packages|aur_packages|dry_runs|lua|hygiene) "check_$2" ;; *) exit 2 ;; esac
+  case "${2:-}" in mirrors|syntax|shellcheck|privacy|privacy_selftest|patches|repo_packages|aur_packages|dry_runs|lua|hygiene) "check_$2" ;; *) exit 2 ;; esac
   exit 0
 fi
 mode=${1:---quick}
@@ -146,7 +147,7 @@ mode=${1:---quick}
 start=$SECONDS
 failed=0
 rows=()
-for check in syntax shellcheck privacy privacy_selftest patches repo_packages aur_packages dry_runs lua hygiene; do
+for check in mirrors syntax shellcheck privacy privacy_selftest patches repo_packages aur_packages dry_runs lua hygiene; do
   echo "=== $check ==="
   remaining=$((115 - (SECONDS - start)))
   status=FAIL

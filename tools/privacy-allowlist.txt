@@ -21,3 +21,16 @@ patches/.*:.*:hex-blob
 privacy-scan\.sh:.*:private-pattern
 privacy-allowlist\.txt:.*:private-pattern
 privacy-selftest\.sh:.*:private-pattern
+
+# Public SHA-256 checksums for vendored upstream objects
+vendor/SHA256SUMS:[1-4]:base64-blob
+vendor/SHA256SUMS:[1-4]:hex-blob
+
+# Public OpenPGP ALARM build key, fingerprint checked during signature verification
+vendor/alarm-build-key\.asc:.*:base64-blob
+
+# Public upstream commit and signing-key fingerprint
+vendor/README\.md:(3|25):(base64-blob|hex-blob)
+
+# Example GitHub release URL is a scanner false positive
+docs/china-network\.md:108:base64-blob

@@ -1,0 +1,34 @@
+From 187d708282b1a634e42c8b7afc27630f4acf1d37 Mon Sep 17 00:00:00 2001
+From: omarchy-alarm-nspawn <noreply@example.com>
+Date: Tue, 13 Oct 2026 12:40:53 -0700
+Subject: [PATCH] Skip upstream mise network provisioning in CN installs
+
+---
+ install/user/mise-work.sh | 3 +++
+ install/user/mise.sh      | 3 +++
+ 2 files changed, 6 insertions(+)
+
+diff --git a/install/user/mise-work.sh b/install/user/mise-work.sh
+index e558724..61a584a 100644
+--- a/install/user/mise-work.sh
++++ b/install/user/mise-work.sh
+@@ -1,3 +1,6 @@
++# CN installs never run upstream language/tool downloads, even with existing mise.
++if [[ ${MIRROR:-global} == cn ]]; then return 0 2>/dev/null || exit 0; fi
++
+ # ARM 容器移植：mise 只有 x86 的 mise-bin，ALARM 和 AUR 都没有可编译的包，跳过。
+ if ! command -v mise >/dev/null 2>&1; then echo "跳过 $(basename "${BASH_SOURCE[0]}")：没有 mise"; return 0 2>/dev/null || exit 0; fi
+ 
+diff --git a/install/user/mise.sh b/install/user/mise.sh
+index c692222..06ee525 100644
+--- a/install/user/mise.sh
++++ b/install/user/mise.sh
+@@ -1,3 +1,6 @@
++# CN installs never run upstream language/tool downloads, even with existing mise.
++if [[ ${MIRROR:-global} == cn ]]; then return 0 2>/dev/null || exit 0; fi
++
+ # ARM 容器移植：mise 只有 x86 的 mise-bin，ALARM 和 AUR 都没有可编译的包，跳过。
+ if ! command -v mise >/dev/null 2>&1; then echo "跳过 $(basename "${BASH_SOURCE[0]}")：没有 mise"; return 0 2>/dev/null || exit 0; fi
+ 
+-- 
+2.55.0

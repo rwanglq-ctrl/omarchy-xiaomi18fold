@@ -65,3 +65,11 @@ failed with “Failed to open system bus”. The next method, `sudo unshare --mo
 in a freshly extracted official rootfs. bwrap was not needed. The rootfs was
 removed after the probe. Full core installation, config verification and the
 second-run idempotence check subsequently passed in 246 seconds. See `tests/RESULTS.md` for the recorded run.
+
+China network policy: `bash tests/mirrors.sh` checks selection, failures,
+artifact fallback, apt source rewriting/backups and offline dry runs.
+`bash tests/china-downloads.sh` runs real download stages in Debian 13 arm64
+under Docker/QEMU with overseas hosts mapped to `0.0.0.0`. Set `DOCKER_HOST`
+for a rootless daemon. The image pull happens before blocking; apt itself is
+bootstrapped from a mainland source. This downloads the complete ALARM rootfs.
+It does not exercise Android display hardware, nested nspawn, or a desktop.
