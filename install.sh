@@ -67,7 +67,9 @@ find_repo() {
 bootstrap() {
   local tmp archive
   if [[ ${MIRROR:-global} == cn && -z ${OMARCHY_ALARM_REPO:-} ]]; then
-    die "CN bootstrap requires a local checkout or OMARCHY_ALARM_REPO pointing to your reachable trusted mirror. No public CN mirror has been published."
+    # Official mainland mirror of this repository (kept in sync with GitHub main/tags).
+    REPO_URL=https://gitee.com/zenbardofsuhe/omarchy-xiaomipad9pm
+    : "${OMARCHY_ALARM_ARCHIVE_URL:=$REPO_URL/repository/archive/$REPO_REF.tar.gz}"
   fi
   tmp=$(mktemp -d "${TMPDIR:-/tmp}/omarchy-alarm-nspawn.XXXXXX")
   log "not running from a checkout; fetching $REPO_URL ($REPO_REF) into $tmp"

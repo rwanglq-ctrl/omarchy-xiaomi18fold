@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.1 — 2026-10-14
+
+- Publish the Gitee mirror https://gitee.com/zenbardofsuhe/omarchy-xiaomipad9pm; `MIRROR=cn` bootstrap now
+  fetches from it by default, enabling a one-line install on mainland networks.
+
 ## 0.2.0 — 2026-10-13
 
 - Add `MIRROR=cn|global|auto` and `--mirror`, with bounded probes, downloads,

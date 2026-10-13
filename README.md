@@ -64,9 +64,16 @@ curl -fsSL https://raw.githubusercontent.com/rwanglq-ctrl/omarchy-xiaomipad9pm/m
 
 ### 国内网络安装
 
-版本：`0.2.0`。先从可信渠道取得**完整源码包或本地 checkout（包含 vendor/）**，进入项目目录，一行安装：
+版本：`0.2.1`。国内用户使用 Gitee 镜像一行安装（镜像与 GitHub 同步，含 vendor/）：
 
 ```bash
+curl -fsSL https://gitee.com/zenbardofsuhe/omarchy-xiaomipad9pm/raw/main/install.sh | MIRROR=cn bash -s -- --profile core
+```
+
+或先克隆再安装：
+
+```bash
+git clone --depth 1 https://gitee.com/zenbardofsuhe/omarchy-xiaomipad9pm.git && cd omarchy-xiaomipad9pm
 MIRROR=cn bash ./install.sh --profile core
 ```
 
@@ -76,11 +83,10 @@ MIRROR=cn bash ./install.sh --profile core
 清华/中科大/北外/交大 ALARM rootfs 和 pacman 源；原有软件源会备份。
 Omarchy v4.0.4 已随源码附带，安装时无需访问 GitHub。
 国内模式跳过 AUR/yay 和可选 mise，保留仓库字体及默认 Rime 中文输入；
-full 中的 AUR 应用也会跳过。不要把 `MIRROR=cn` 放在 curl 左侧误以为能改变下载地址。
+full 中的 AUR 应用也会跳过。`MIRROR=cn` 要放在管道右侧的 `bash` 前面，放在 curl 左侧无效。
 
-**本项目尚未发布独立的国内源码镜像**，GitHub raw 的一键引导在被封锁网络下仍不可用。
-可将完整源码包传入 Android Linux Terminal，或设置 `OMARCHY_ALARM_REPO` 为你信任且可达的 Git 镜像
-（引导阶段的归档下载地址可用 `OMARCHY_ALARM_ARCHIVE_URL` 覆盖）。
+`MIRROR=cn` 且未设置 `OMARCHY_ALARM_REPO` 时，引导阶段默认从 Gitee 镜像拉取源码；
+也可设置 `OMARCHY_ALARM_REPO` / `OMARCHY_ALARM_ARCHIVE_URL` 指向你自己信任的镜像。
 第三方 GitHub 代理不作为默认依赖。完整审计及测试限制见 [国内网络审计](docs/china-network.md)。
 
 
