@@ -36,10 +36,10 @@ fi
 
 step() {
   local function=$1 description=$2
-  printf '\n==> %s: %s\n' "$function" "$description"
+  printf '\n==> %s: %s\n' "$function" "$description" >&2
   if ! $dry_run; then "$function"; fi
 }
-as_root() { sudo -- "$@"; }
+as_root() { sudo -- "$@" </dev/null; }
 packages() {
   local kind=$1
   sed -e 's/#.*//' -e '/^[[:space:]]*$/d' "$ROOT/packages/$kind-core.txt"
@@ -69,7 +69,32 @@ install_repo_packages() {
       as_root cp -p /etc/pacman.d/mirrorlist /etc/pacman.d/mirrorlist.omarchy-original
     fi
     as_root install -m644 "$mirrors" /etc/pacman.d/mirrorlist
+    local conf
+    conf=$(mktemp)
+    as_root cat /etc/pacman.conf > "$conf"
+    network_pacman_repos "$conf"
+    if ! as_root test -e /etc/pacman.conf.omarchy-original; then
+      as_root cp -p /etc/pacman.conf /etc/pacman.conf.omarchy-original
+    fi
+    as_root install -m644 "$conf" /etc/pacman.conf
+    rm -f "$conf" "$conf.omarchy-original"
     rm -f "$mirrors" "$mirrors.omarchy-original"
+  fi
+  local mirror=mirror.archlinuxarm.org
+  [[ $MIRROR != cn ]] || mirror=mirrors.tuna.tsinghua.edu.cn
+  if ! timeout 30 getent hosts "$mirror"; then
+    if [[ $MIRROR != cn ]]; then
+      echo "Cannot resolve $mirror; refusing to run pacman" >&2
+      return 1
+    fi
+    local dnsroot
+    dnsroot=$(mktemp -d)
+    # Explicit fallback also repairs old containers when rerun directly in Arch.
+    network_resolv_config "$dnsroot" /dev/null /dev/null
+    as_root rm -f /etc/resolv.conf
+    as_root install -m644 "$dnsroot/etc/resolv.conf" /etc/resolv.conf
+    rm -rf "$dnsroot"
+    timeout 30 getent hosts "$mirror" || return 1
   fi
   as_root pacman -Syu --needed --noconfirm "${names[@]}"
 }

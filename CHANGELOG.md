@@ -1,6 +1,23 @@
 # Changelog
 
-## 0.2.1 — 2026-10-14
+## 0.2.2 — 2026-10-13
+
+- Repair container DNS before pacman: replace rootfs resolver symlinks, read host
+  upstream DNS instead of loopback stubs, and verify mirror resolution in nspawn.
+  CN retries with AliDNS and DNSPod; nspawn preserves the managed resolver.
+- Isolate installer children from piped script stdin and send diagnostic logs
+  to stderr as defensive protection against script/input mixups.
+- Remove the unsupported `[aur]` sync repository in CN mode (with a backup),
+  and install host `gnupg` in CN mode before rootfs signature verification.
+- Extract fresh rootfs into staging and rename only after success, so interrupted
+  extraction cannot be mistaken for an installed container.
+- Retry a mirror once from scratch after a stale partial fails its checksum.
+- Confirm existing Arch containers and checksum-valid cached rootfs downloads
+  are reused on resume; add resolver, stdin, repository and resume regressions.
+- Support arm64 CI under QEMU with an adjustable quick-suite budget, cached
+  rootfs downloads and explicit Docker platform selection.
+
+## 0.2.1 — 2026-10-13
 
 - Publish the Gitee mirror https://gitee.com/zenbardofsuhe/omarchy-xiaomipad9pm; `MIRROR=cn` bootstrap now
   fetches from it by default, enabling a one-line install on mainland networks.

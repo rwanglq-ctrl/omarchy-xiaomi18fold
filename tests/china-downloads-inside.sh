@@ -26,6 +26,21 @@ network_download_rootfs /tmp/downloads/rootfs.tar.gz
 mkdir /tmp/alarm
 bsdtar -xpf /tmp/downloads/rootfs.tar.gz -C /tmp/alarm
 network_pacman_config /tmp/alarm/etc/pacman.d/mirrorlist
+network_pacman_repos /tmp/alarm/etc/pacman.conf
+# Exercise the real aarch64 resolver in the rootfs with a host stub fixture.
+cp /etc/resolv.conf /tmp/host-uplink.conf
+printf 'nameserver 127.0.0.53\n' > /tmp/host-stub.conf
+network_resolv_config /tmp/alarm /tmp/host-stub.conf /tmp/host-uplink.conf
+[[ ! -L /tmp/alarm/etc/resolv.conf ]]
+! grep -q '127\.' /tmp/alarm/etc/resolv.conf
+chroot /tmp/alarm /usr/bin/getent hosts mirrors.tuna.tsinghua.edu.cn
+# Docker cannot run nested nspawn here; regression tests exercise its argv/stdin.
+useradd -m tester
+bash /src/tests/installer-regressions.sh
+# Cache reuse must not fetch the tarball again (checksum metadata may refresh).
+rootfs_hash=$(sha256sum /tmp/downloads/rootfs.tar.gz)
+network_download_rootfs /tmp/downloads/rootfs.tar.gz
+[[ $(sha256sum /tmp/downloads/rootfs.tar.gz) == "$rootfs_hash" ]]
 # Download every configured sync DB without needing nested nspawn privileges.
 for repo in core extra alarm; do
   urls=()
@@ -41,6 +56,5 @@ network_unpack_omarchy /src /tmp/omarchy
 [[ $(git -C /tmp/omarchy rev-parse HEAD) == "$(cat /src/patches/BASE)" ]]
 for patch in /src/patches/*.patch; do git -C /tmp/omarchy -c user.name=test -c user.email=noreply@example.com am "$patch"; done
 # Installer plans must propagate mode to host and nspawn without changing this VM.
-useradd -m tester
 MIRROR=cn bash /src/install.sh --dry-run --user tester --profile core
 printf 'PASS Debian arm64 blocked-host apt/rootfs/extraction/pacman DB/vendor/patch/dry-run stages\n'

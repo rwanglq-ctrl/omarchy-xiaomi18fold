@@ -59,16 +59,16 @@ Environment:
 EOF
 }
 
-log()  { printf '==> %s\n' "$*"; }
-note() { printf '    %s\n' "$*"; }
+log()  { printf '==> %s\n' "$*" >&2; }
+note() { printf '    %s\n' "$*" >&2; }
 warn() { printf 'WARNING: %s\n' "$*" >&2; }
 die()  { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
 
 # run CMD...: print the command, and execute it unless --dry-run.
 run() {
-  printf '  +'; printf ' %q' "$@"; printf '\n'
+  { printf '  +'; printf ' %q' "$@"; printf '\n'; } >&2
   if (( DRY_RUN )); then return 0; fi
-  "$@"
+  "$@" </dev/null
 }
 
 ORIG_ARGS=("$@")
@@ -98,6 +98,7 @@ export NETWORK_DRY_RUN=$DRY_RUN
 [[ -z $RENDER_DIR ]] || NETWORK_DRY_RUN=1
 network_init
 network_select_alarm
+[[ $MIRROR != cn ]] || APT_PACKAGES+=(gnupg)
 
 [[ $ROOTFS == /* ]] || die "--rootfs must be an absolute path: $ROOTFS"
 ROOTFS=${ROOTFS%/}
@@ -325,13 +326,19 @@ esac
 if [[ $rootfs_state != arch ]]; then
   TARBALL=""
   fetch_rootfs
-  run mkdir -p "$ROOTFS"
-  run chmod 755 "$ROOTFS"
-  run bsdtar -xpf "${TARBALL:-$CACHE_DIR/${ALARM_URL##*/}}" -C "$ROOTFS"
+  run network_extract_rootfs "${TARBALL:-$CACHE_DIR/${ALARM_URL##*/}}" "$ROOTFS"
 fi
 
 if [[ $MIRROR == cn ]]; then
   if (( DRY_RUN )); then note "configure mainland pacman mirrors before first pacman sync"; else network_pacman_config "$ROOTFS/etc/pacman.d/mirrorlist"; fi
+fi
+
+if (( DRY_RUN )); then
+  note "write upstream container DNS; verify mirror with getent before pacman; disable CN [aur]"
+else
+  network_resolv_config "$ROOTFS"
+  network_pacman_repos "$ROOTFS/etc/pacman.conf"
+  network_container_dns "$ROOTFS"
 fi
 
 # --- 5. inside the container -----------------------------------------------------------
@@ -455,11 +462,11 @@ visudo -cqf /etc/sudoers.d/10-wheel-nopasswd
 '
 
 nspawn_setup=(env SYSTEMD_NSPAWN_LOCK=0 systemd-nspawn -q -D "$ROOTFS" --register=no
-  --resolv-conf=copy-host --console=pipe
+  --resolv-conf=off --console=pipe
   /bin/bash -c "$CONTAINER_SETUP" container-setup
   "$TARGET_USER" "$T_UID" "$T_GID" "$T_GROUP" "${host_groups[@]}")
 if (( DRY_RUN )); then
-  printf '  + SYSTEMD_NSPAWN_LOCK=0 systemd-nspawn -q -D %q --register=no --resolv-conf=copy-host --console=pipe \\\n' "$ROOTFS"
+  printf '  + SYSTEMD_NSPAWN_LOCK=0 systemd-nspawn -q -D %q --register=no --resolv-conf=off --console=pipe \\\n' "$ROOTFS"
   printf '      /bin/bash -c <setup script> %q %q %q %q %s\n' "$TARGET_USER" "$T_UID" "$T_GID" "$T_GROUP" "${host_groups[*]}"
   note "setup script: pacman-key --init/--populate archlinuxarm; drop linux-aarch64;"
   note "  pacman -Syu base-devel git sudo; locales en_US.UTF-8 + zh_CN.UTF-8;"

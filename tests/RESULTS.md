@@ -49,3 +49,26 @@ Full evidence is retained locally in
 
 The GitHub workflow has been written and reviewed locally; it has not been run
 on GitHub.
+
+## v0.2.2 validation — 2026-10-13
+
+- Offline installer regressions: PASS, 30 checks, including host stub/uplink DNS,
+  resolver symlinks, CN fallback, unsupported `[aur]`, greedy child stdin,
+  cached tarball reuse, stale partial checksum retry and atomic extraction.
+- `tests/china-downloads.sh`: PASS on Debian 13 arm64 through Docker/QEMU with
+  overseas hosts blocked. Verified mainland apt, complete rootfs download and
+  checksum, extraction, real ALARM `getent` with a synthetic host loopback stub,
+  cached rootfs reuse, sync databases/package metadata, vendored upstream,
+  patches, and CN dry-run dependency/command plans (including host `gnupg`).
+- Real official rootfs atomic extraction smoke: PASS in a disposable user
+  namespace, including resolver symlink repair and real arm64 `getent`.
+- Official ALARM arm64 CI-prepared image: final `tests/run.sh --quick` PASS,
+  all 11 rows, exit 0 in 168 seconds. QEMU used the documented 600-second
+  budget; no checks were skipped. Image preparation was performed by `tests/ci.sh`.
+- Native x86 quick suite: 10 checks PASS; ALARM repository-package check FAILs
+  because the x86 host repositories do not contain `archlinuxarm-keyring`.
+
+The simulation covers DNS and installer logic; Android display hardware and a
+live nested nspawn session are outside this test. nspawn argv and stdin are
+covered by regression mocks. MIMO investigation, test authoring, mutation checks
+and reviews are recorded in `/tmp/mimo-logs/01-*.log` through `06-*.log`.

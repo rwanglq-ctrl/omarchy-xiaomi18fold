@@ -2,8 +2,10 @@
 
 Run `tests/run.sh --quick` as an ordinary user on Arch Linux ARM aarch64.
 It prints a PASS/FAIL/SKIP table and returns zero only when every required
-check passes. The quick suite has a 115-second total budget (network stalls
-fail the affected check). Initial CI image preparation is outside that budget.
+check passes. The quick suite defaults to a 115-second total budget (network stalls
+fail the affected check). `ALARM_TEST_QUICK_BUDGET` overrides the budget in
+seconds (a positive integer); CI uses 600 seconds for emulated arm64 on
+a non-aarch64 host. Initial CI image preparation is outside that budget.
 Only `.git` metadata is excluded from syntax/hygiene traversal; privacy scanning
 receives the whole repository. `tools/privacy-selftest.sh` generates its own
 synthetic fixtures outside the checkout.
@@ -73,3 +75,10 @@ under Docker/QEMU with overseas hosts mapped to `0.0.0.0`. Set `DOCKER_HOST`
 for a rootless daemon. The image pull happens before blocking; apt itself is
 bootstrapped from a mainland source. This downloads the complete ALARM rootfs.
 It does not exercise Android display hardware, nested nspawn, or a desktop.
+
+`bash tests/installer-regressions.sh` runs offline regressions for host stub DNS,
+rootfs resolver symlinks, CN fallback, unsupported sync repositories, piped
+installer stdin and resume behavior, including interrupted atomic extraction.
+It is included in quick checks. The CN
+Docker/QEMU simulation also resolves a mirror using the real ALARM `getent`
+with a synthetic `127.0.0.53` host resolver and checks cached rootfs reuse.

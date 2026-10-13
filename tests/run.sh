@@ -14,7 +14,7 @@ scripts() {
   find "$ROOT" -path "$ROOT/.git" -prune -o -type f \( -name '*.sh' -o -path "$ROOT/host/bin/*" -o -path "$ROOT/container/bin/*" \) -print0
 }
 names() { sed -e 's/#.*//' -e '/^[[:space:]]*$/d' "$@" | sort -u; }
-check_mirrors() { bash "$ROOT/tests/mirrors.sh"; }
+check_mirrors() { bash "$ROOT/tests/mirrors.sh"; bash "$ROOT/tests/installer-regressions.sh"; }
 check_syntax() {
   local f
   while IFS= read -r -d '' f; do bash -n "$f"; done < <(scripts)
@@ -144,12 +144,14 @@ if [[ ${1:-} == --check ]]; then
 fi
 mode=${1:---quick}
 [[ $# -le 1 && ( $mode == --quick || $mode == --full ) ]] || { echo 'Usage: tests/run.sh [--quick|--full]' >&2; exit 2; }
+budget=${ALARM_TEST_QUICK_BUDGET:-115}
+[[ $budget =~ ^[1-9][0-9]*$ ]] || { echo 'ALARM_TEST_QUICK_BUDGET must be positive seconds' >&2; exit 2; }
 start=$SECONDS
 failed=0
 rows=()
 for check in mirrors syntax shellcheck privacy privacy_selftest patches repo_packages aur_packages dry_runs lua hygiene; do
   echo "=== $check ==="
-  remaining=$((115 - (SECONDS - start)))
+  remaining=$((budget - (SECONDS - start)))
   status=FAIL
   if ((remaining > 0)); then
     set +e

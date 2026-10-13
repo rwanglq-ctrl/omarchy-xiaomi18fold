@@ -25,8 +25,8 @@ REPO_URL=${OMARCHY_ALARM_REPO:-https://github.com/rwanglq-ctrl/omarchy-xiaomipad
 REPO_REF=${OMARCHY_ALARM_REF:-main}
 CONTAINER_REPO=/opt/omarchy-alarm-nspawn
 
-log()  { printf '==> %s\n' "$*"; }
-note() { printf '    %s\n' "$*"; }
+log()  { printf '==> %s\n' "$*" >&2; }
+note() { printf '    %s\n' "$*" >&2; }
 warn() { printf 'WARNING: %s\n' "$*" >&2; }
 die()  { printf 'ERROR: %s\n' "$1" >&2; exit "${2:-1}"; }
 
@@ -86,10 +86,7 @@ bootstrap() {
   fi
   [[ -f $tmp/repo/install.sh ]] || die "fetched repo has no install.sh"
   export OMARCHY_ALARM_BOOTSTRAPPED=1
-  # Give the real run a terminal again (stdin was the piped script) when there is one.
-  if { exec 3</dev/tty; } 2>/dev/null; then
-    exec bash "$tmp/repo/install.sh" "$@" <&3 3<&-
-  fi
+  # Installer children are noninteractive; sudo can prompt through /dev/tty.
   exec bash "$tmp/repo/install.sh" "$@" </dev/null
 }
 
@@ -176,7 +173,7 @@ run_container_local() {
     fi
     die "container/install.sh is missing from $REPO_DIR"
   fi
-  "${cmd[@]}"
+  "${cmd[@]}" </dev/null
 }
 
 # Debian host: host side first, then the container side inside the new rootfs.
@@ -200,14 +197,14 @@ run_debian() {
   if (( dry )); then
     "${host_cmd[@]}" --dry-run
   else
-    "${sudo[@]}" env MIRROR="$MIRROR" "${host_cmd[@]}"
+    "${sudo[@]}" env MIRROR="$MIRROR" "${host_cmd[@]}" </dev/null
   fi
 
   local chome=/home/$user
   local nspawn=("${sudo[@]}" env SYSTEMD_NSPAWN_LOCK=0 systemd-nspawn -q -D "$rootfs" --register=no
-    --resolv-conf=copy-host -u "$user" --chdir="$chome"
+    --resolv-conf=off -u "$user" --chdir="$chome"
     --setenv=MIRROR="$MIRROR" --setenv=HOME="$chome" --setenv=LANG=en_US.UTF-8 --setenv=TERM="${TERM:-xterm-256color}")
-  [[ -t 0 ]] || nspawn+=(--console=pipe)
+  nspawn+=(--console=pipe)
   nspawn+=(bash "$CONTAINER_REPO/container/install.sh" "${container_extra[@]}")
 
   log "copy this repo into the container: $rootfs$CONTAINER_REPO"
@@ -228,11 +225,11 @@ run_debian() {
   "${sudo[@]}" chmod -R a+rX "$rootfs$CONTAINER_REPO"
 
   log "container side (as $user inside the container)"
-  "${nspawn[@]}"
+  "${nspawn[@]}" </dev/null
 
   log "done"
   note "switch the display to the Arch desktop: hypr-switch arch --now"
   note "shell in the container: archbox (or archsh while the Arch desktop runs)"
 }
 
-main "$@"
+main "$@" </dev/null

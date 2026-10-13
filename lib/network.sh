@@ -12,13 +12,13 @@ network_init() {
   case $MIRROR in
     auto)
       if [[ ${NETWORK_DRY_RUN:-0} == 1 ]]; then
-        MIRROR=global; echo 'mirror mode: global (auto: dry run, not probing)'
+        MIRROR=global; echo 'mirror mode: global (auto: dry run, not probing)' >&2
       elif network_github_reachable; then
-        MIRROR=global; echo 'mirror mode: global (auto: github.com and raw.githubusercontent.com reachable)'
+        MIRROR=global; echo 'mirror mode: global (auto: github.com and raw.githubusercontent.com reachable)' >&2
       else
-        MIRROR=cn; echo 'mirror mode: cn (auto: github unreachable)'
+        MIRROR=cn; echo 'mirror mode: cn (auto: github unreachable)' >&2
       fi ;;
-    cn|global) echo "mirror mode: $MIRROR" ;;
+    cn|global) echo "mirror mode: $MIRROR" >&2 ;;
     *) echo 'MIRROR must be cn, global or auto' >&2; return 2 ;;
   esac
   export MIRROR
@@ -132,7 +132,7 @@ network_unpack_omarchy() {
 }
 
 network_download_rootfs() {
-  local tarball=$1 url want base
+  local tarball=$1 url want base attempt
   # 790 MiB rootfs: allow a long transfer (resumed via $tarball.part) unless overridden.
   local NETWORK_DOWNLOAD_TIMEOUT=${NETWORK_ROOTFS_TIMEOUT:-${NETWORK_DOWNLOAD_TIMEOUT:-7200}}
   local candidates=("$ALARM_URL")
@@ -146,15 +146,19 @@ network_download_rootfs() {
     network_fetch "$tarball.md5" "$url.md5" || continue
     want=$(awk '{print $1; exit}' "$tarball.md5")
     [[ $want =~ ^[0-9a-fA-F]{32}$ ]] || continue
-    if [[ ! -f $tarball || $(md5sum "$tarball" | awk '{print $1}') != "$want" ]]; then
-      network_fetch "$tarball" "$url" || continue
-    fi
-    if [[ $(md5sum "$tarball" | awk '{print $1}') == "$want" ]]; then
-      ALARM_URL=$url; return 0
-    fi
-    echo "Rootfs checksum mismatch from $url" >&2
-    # Only a checksum mismatch discards the download; keep partials otherwise.
-    rm -f "$tarball" "$tarball.part"
+    # A partial download may belong to an older "latest" build. After a
+    # checksum mismatch, retry this mirror once from scratch before advancing.
+    for attempt in 1 2; do
+      if [[ ! -f $tarball || $(md5sum "$tarball" | awk '{print $1}') != "$want" ]]; then
+        network_fetch "$tarball" "$url" || break
+      fi
+      if [[ $(md5sum "$tarball" | awk '{print $1}') == "$want" ]]; then
+        ALARM_URL=$url; return 0
+      fi
+      echo "Rootfs checksum mismatch from $url (attempt $attempt)" >&2
+      # Only a checksum mismatch discards the download; keep partials otherwise.
+      rm -f "$tarball" "$tarball.part"
+    done
   done
   echo 'No mirror delivered a checksum-valid rootfs' >&2; return 1
 }
@@ -183,3 +187,74 @@ network_apt_update() {
   done
   echo 'All mainland apt mirrors failed to update' >&2; return 1
 }
+
+# nspawn must not copy a host stub or preserve a dangling rootfs symlink.
+# Android's resolver may be absent from resolv.conf; CN has a bounded fallback.
+network_resolv_config() {
+  local root=$1 host=${2:-/etc/resolv.conf} uplink=${3:-/run/systemd/resolve/resolv.conf} servers
+  servers=$(network_nameservers "$host")
+  if [[ -z $servers ]] || grep -Eq '^[[:space:]]*nameserver[[:space:]]+(127\.|::1([[:space:]]|$))' "$host" 2>/dev/null; then
+    servers=$(network_nameservers "$uplink")
+    [[ -n $servers ]] || servers=$(network_nameservers "$host")
+  fi
+  if [[ -z $servers && $MIRROR == cn ]]; then
+    servers=$'nameserver 223.5.5.5\nnameserver 119.29.29.29'
+  fi
+  [[ -n $servers ]] || { echo 'No upstream DNS servers found on host' >&2; return 1; }
+  mkdir -p "$root/etc"
+  rm -f "$root/etc/resolv.conf"
+  printf '%s\n' "$servers" > "$root/etc/resolv.conf"
+  chmod 644 "$root/etc/resolv.conf"
+}
+network_nameservers() {
+  [[ -r $1 ]] || return 0
+  awk '$1 == "nameserver" && $2 !~ /^127\./ && $2 != "::1" && $2 ~ /^[0-9a-fA-F:.%]+$/ {print "nameserver " $2}' "$1"
+}
+network_container_dns() {
+  local root=$1 mirror=mirror.archlinuxarm.org
+  [[ $MIRROR != cn ]] || mirror=mirrors.tuna.tsinghua.edu.cn
+  if [[ -n ${ALARM_URL:-} ]]; then
+    mirror=${ALARM_URL#*://}
+    mirror=${mirror%%/*}
+    mirror=${mirror%%:*}
+  fi
+  local probe=(env SYSTEMD_NSPAWN_LOCK=0 systemd-nspawn -q -D "$root" --register=no
+    --resolv-conf=off --console=pipe /usr/bin/getent hosts "$mirror")
+  if timeout "${NETWORK_DNS_TIMEOUT:-30}" "${probe[@]}" </dev/null; then return 0; fi
+  if [[ $MIRROR == cn ]]; then
+    echo 'Container DNS failed; retrying with mainland public resolvers' >&2
+    rm -f "$root/etc/resolv.conf"
+    printf 'nameserver 223.5.5.5\nnameserver 119.29.29.29\n' > "$root/etc/resolv.conf"
+    chmod 644 "$root/etc/resolv.conf"
+    if timeout "${NETWORK_DNS_TIMEOUT:-30}" "${probe[@]}" </dev/null; then return 0; fi
+  fi
+  echo "Container cannot resolve $mirror; refusing to run pacman" >&2
+  return 1
+}
+
+# Mainland ALARM mirrors serve core/extra/alarm, but not the rootfs' [aur].
+network_pacman_repos() {
+  local file=$1 tmp
+  [[ $MIRROR == cn && -f $file ]] || return 0
+  [[ -f $file.omarchy-original ]] || cp -p "$file" "$file.omarchy-original"
+  tmp=$(mktemp)
+  awk '/^[[:space:]]*\[/ { skip = ($0 ~ /^[[:space:]]*\[aur\][[:space:]]*([#;].*)?$/) } !skip {print}' "$file" > "$tmp"
+  cat "$tmp" > "$file"
+  rm -f "$tmp"
+}
+
+# Publish a fresh rootfs only after extraction completes. Failed/interrupted runs
+# leave the destination empty/missing, so a rerun safely uses the cached tarball.
+network_extract_rootfs() (
+  local tarball=$1 root=$2 staging
+  [[ $root == /* && $root != / ]] || return 1
+  mkdir -p "$(dirname "$root")"
+  staging=$(mktemp -d "$root.omarchy-extract.XXXXXX")
+  trap 'rm -rf -- "$staging"' EXIT
+  chmod 755 "$staging"
+  bsdtar -xpf "$tarball" -C "$staging" </dev/null || return 1
+  [[ -e $staging/etc/arch-release && -x $staging/usr/bin/pacman && -x $staging/usr/bin/bash ]] || {
+    echo 'Extracted rootfs is incomplete; refusing to publish it' >&2; return 1;
+  }
+  mv -T "$staging" "$root"
+)

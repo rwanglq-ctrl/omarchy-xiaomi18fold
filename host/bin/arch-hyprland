@@ -38,7 +38,7 @@ fi
 # $mesa, $homebinds and $launch are intentionally unquoted so they split into separate words.
 # shellcheck disable=SC2086
 exec sudo SYSTEMD_NSPAWN_LOCK=0 systemd-nspawn -q -D "$rootfs" -M arch-desktop \
-  --as-pid2 --kill-signal=SIGTERM --console=pipe --resolv-conf=copy-host \
+  --as-pid2 --kill-signal=SIGTERM --console=pipe --resolv-conf=off \
   -u '@USER@' --chdir='@CHOME@' \
   --bind=/dev/dri --bind=/dev/udmabuf --bind=/dev/input --bind-ro=/run/udev --bind=/run/seatd.sock \
   --bind=/run/user/@UID@ --bind=/tmp \

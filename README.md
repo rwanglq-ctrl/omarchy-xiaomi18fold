@@ -64,11 +64,21 @@ curl -fsSL https://raw.githubusercontent.com/rwanglq-ctrl/omarchy-xiaomipad9pm/m
 
 ### 国内网络安装
 
-版本：`0.2.1`。国内用户使用 Gitee 镜像一行安装（镜像与 GitHub 同步，含 vendor/）：
+GitHub 版本：`0.2.2`。以下 Gitee 命令需等待镜像同步本次发布（含 vendor/）；同步前请使用下一段的 v0.2.2 命令或本地源码：
 
 ```bash
 curl -fsSL https://gitee.com/zenbardofsuhe/omarchy-xiaomipad9pm/raw/main/install.sh | MIRROR=cn bash -s -- --profile core
 ```
+
+**Resume on Pad（失败后继续）**：在 Debian 宿主终端重新运行以下命令。安装器会复用现有 Arch 容器和校验通过的 rootfs 缓存，保留未完成下载的 `.part` 文件；先修复容器 DNS 再继续 pacman。使用相同的用户和 `--rootfs` 参数（如曾指定）。
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/rwanglq-ctrl/omarchy-xiaomipad9pm/v0.2.2/install.sh | MIRROR=cn OMARCHY_ALARM_REPO=https://github.com/rwanglq-ctrl/omarchy-xiaomipad9pm OMARCHY_ALARM_REF=v0.2.2 bash -s -- --profile core
+```
+
+Pad 切换网络后若容器 DNS 再次失败，重跑相同安装命令可刷新宿主上游 DNS。
+
+本次发布仅推送 GitHub；Gitee 同步到 v0.2.2 后，可重新运行上面的国内一行命令。GitHub 无法访问时，请先将 v0.2.2 源码复制到 Pad，再运行 `MIRROR=cn bash ./install.sh --profile core`。
 
 或先克隆再安装：
 
