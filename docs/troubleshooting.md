@@ -2,28 +2,22 @@
 
 ## 容器无法启动
 
-### 症状：`machinectl start arch` 失败
-
-检查 systemd-nspawn 服务状态：
-```bash
-sudo systemctl status systemd-nspawn@arch
-sudo journalctl -u systemd-nspawn@arch -n 50
-```
-
-常见原因：
-- 根文件系统下载不完整或损坏 — 重新运行安装脚本
-- 磁盘空间不足 — `df -h /var/lib/machines`
-- SELinux / AppArmor 策略阻止 — 检查 `dmesg`
-
-### 症状：容器启动后立即退出
+桌面容器由 `arch-hyprland` 非 boot 模式启动，机器名是 `arch-desktop`。
+不要用 `machinectl start arch` 代替正常启动链。Debian 宿主运行：
 
 ```bash
-sudo systemd-nspawn -D /var/lib/machines/arch /bin/bash
+~/.local/bin/arch-diag
+journalctl --user -u weston.service -b --no-pager
+sudo journalctl -b -u systemd-machined --no-pager
 ```
 
-手动进入容器检查：
-- `/etc/pacman.d/mirrorlist` 是否存在
-- `pacman -Sy` 是否能正常同步
+每次启动证据保存在 `~/.local/state/omarchy-alarm/arch-session-*.log`。
+按 `stage=` 顺序区分 sudo/挂载预检、nspawn 注册、容器入口、start-hyprland、
+输出就绪、诊断、清理和回退。容器清理后 `machinectl` 查不到它，不代表从未启动。
+
+独立文本终端/SSH、显示服务停止时可运行 `~/.local/bin/arch-selftest`。
+它前台运行一次、无 Weston 回退，打印私有日志路径；已有会话时拒绝执行。
+详见 [自检与证据](v0.2.5-validation.md)。
 
 ## Hyprland 无法启动
 
@@ -31,7 +25,7 @@ sudo systemd-nspawn -D /var/lib/machines/arch /bin/bash
 
 v0.2.4 不再固定 Virtual-1；连接器编号可能改变。Debian 宿主运行
 `~/.local/bin/arch-output --connected` 查看内核已连接的 card0 输出。
-`~/.local/bin/arch-diag` 保存私有原始 monitors all、DRM status 和过滤日志尾部；
+`~/.local/bin/arch-diag` 保存私有原始 monitors all、DRM status 和原始日志尾部；
 启动 gate 会在停止 Arch、回退 Weston 前自动收集。若输出有尺寸但仍黑屏，
 IPC 就绪不能证明像素已显示，请保留诊断进一步定位。
 
@@ -46,9 +40,9 @@ Hyprland --verify-config
 ```
 
 常见原因：
-- 缺少 Wayland socket — 确保宿主的 seatd 已启动
+- 缺少 seatd socket — 确保宿主的 seatd 已启动；Wayland socket 由 Hyprland 创建
 - llvmpipe 问题 — 检查 `LIBGL_ALWAYS_SOFTWARE=1` 是否设置
-- 配置语法错误 — 查看 `~/.local/state/omarchy/hyprland.log`
+- 配置语法错误 — 查看 `/run/user/UID/hypr/INSTANCE/hyprland.log`（通过宿主 `arch-output --logs` 自动定位）
 
 ### 症状：Hyprland 启动但无显示
 
@@ -126,12 +120,9 @@ passwd
 **不要运行 `omarchy-update`** — 它会走 Omarchy 自家软件源和 channel 切换，
 在容器环境中无法正常工作。
 
-更新方式：
-```bash
-cd ~/.local/share/omarchy
-git fetch origin
-git rebase v4.0.4 arm-port  # 或 rebase 到新 tag
-```
+更新方式：在 Debian 宿主按 README 的 `OMARCHY_ALARM_REF=main` 命令重跑安装器。
+它验证固定上游基线并按 patch-id 应用缺失补丁，拒绝覆盖上游 checkout 的未提交修改。
+不要自行 rebase 到另一个 Omarchy tag：本项目补丁和测试针对固定 v4.0.4。
 
 ## 性能问题
 
@@ -148,3 +139,32 @@ free -h
 # 渲染相关进程
 ps aux | grep -E 'hyprland|quickshell|foot'
 ```
+
+## `registration-collision` / `registry-unavailable` / `session-busy`
+
+从 SSH 或独立的 Debian 终端检查（不要从将被关闭的图形终端执行）：
+
+```bash
+journalctl --user -b -u weston.service --no-pager -n 100
+machinectl list
+machinectl status arch-desktop
+```
+
+`registration-collision` 表示已有容器占用会话；启动器不会终止不属于本次启动的容器。
+确认无需保留该 Arch 桌面中的工作后，运行以下恢复步骤；这会结束已有 Arch 会话：
+
+```bash
+systemctl --user stop weston.service
+sudo machinectl terminate arch-desktop
+machinectl list  # 确认 arch-desktop 已消失
+hypr-switch debian
+```
+
+`registry-unavailable` 表示三次有时限的查询均失败，尚无法确认 DRM 未被占用。
+检查 `sudo systemctl status systemd-machined` 与其 journal，修复服务后重试。
+`session-busy` 表示另一个启动器持有锁；结束或等待已有 `arch-selftest` / `arch-hyprland`，
+不要删除锁文件。以上拒绝发生在启动前，原因写入终端或 user journal。
+
+会话证据保留最近 10 个文件，每个至多 8 MiB；超限保留近期输出并标记截断。
+独立 `arch-diag` 保留最近 10 份报告。请在重试多次前复制需要保留的证据。
+正常 Weston 回退之后的输出交给 journal；该次 Arch 失败证据仍保留在文件中。

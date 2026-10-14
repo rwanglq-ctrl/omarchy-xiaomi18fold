@@ -57,6 +57,7 @@ validate_environment() {
   export OMARCHY_PATH="$HOME/.local/share/omarchy"
   export PATH="$OMARCHY_PATH/bin:$HOME/.local/bin:$PATH"
 }
+initialize_machine_identity() { as_root bash "$ROOT/lib/machine-id.sh" /; }
 install_repo_packages() {
   local -a names
   mapfile -t names < <(packages repo)
@@ -266,6 +267,7 @@ if ! $dry_run; then
 fi
 printf 'Omarchy ARM profile=%s dry-run=%s no-aur=%s\n' "$profile" "$dry_run" "$no_aur"
 step validate_environment 'Check Arch Linux ARM, sudo access, and user build paths'
+step initialize_machine_identity 'Initialize persistent machine-id for non-boot D-Bus clients'
 step install_repo_packages 'Install repository packages (core plus selected full extras)'
 step configure_build_directories 'Set makepkg BUILDDIR and TMPDIR beneath HOME/.cache'
 step install_aur_packages 'Bootstrap yay; install AUR packages; tensaku/omawrite use --ignorearch (unless --no-aur)'

@@ -13,15 +13,14 @@
 #
 # Extra options passed through: --rootfs DIR, --no-display-hook, --no-home-binds (host),
 # --no-aur (container). Environment: OMARCHY_ALARM_REPO / OMARCHY_ALARM_REF select what a
-# piped (curl | bash) run clones; OMARCHY_ALARM_ARCHIVE_URL overrides the archive download
-# used when git is missing or git clone fails.
+# piped (curl | bash) run clones. Git is required; Debian can install it via apt.
 
 set -euo pipefail
 
 # Everything lives in functions called on the last line, so a piped script is read in full
 # before anything runs (and nothing below can swallow the rest of it from stdin).
 
-REPO_URL=${OMARCHY_ALARM_REPO:-https://github.com/rwanglq-ctrl/omarchy-xiaomipad9pm}
+REPO_URL=${OMARCHY_ALARM_REPO:-}
 REPO_REF=${OMARCHY_ALARM_REF:-main}
 CONTAINER_REPO=/opt/omarchy-alarm-nspawn
 
@@ -64,31 +63,70 @@ find_repo() {
   bootstrap "$@"
 }
 
-bootstrap() {
-  local tmp archive
-  if [[ ${MIRROR:-global} == cn && -z ${OMARCHY_ALARM_REPO:-} ]]; then
-    # Official mainland mirror of this repository (kept in sync with GitHub main/tags).
+bootstrap() (
+  # This subshell owns the checkout and removes it on success, failure or signal.
+  local tmp revision base clone_ref
+  local privilege=() apt_options=(-o Acquire::Retries=2 -o Acquire::http::Timeout=15 -o Acquire::https::Timeout=15)
+  if [[ ${MIRROR:-global} == auto ]] && (( ! dry )); then
+    if command -v curl >/dev/null &&
+       curl -sSI --connect-timeout 2 --max-time 4 https://github.com >/dev/null 2>&1 &&
+       curl -sSI --connect-timeout 2 --max-time 4 https://raw.githubusercontent.com >/dev/null 2>&1; then
+      export MIRROR=global
+    else
+      export MIRROR=cn
+    fi
+  fi
+  # Select source after auto detection. Explicit CN never contacts GitHub.
+  if [[ $REPO_URL == gitee || ( -z $REPO_URL && ${MIRROR:-global} == cn ) ]]; then
     REPO_URL=https://gitee.com/zenbardofsuhe/omarchy-xiaomipad9pm
-    : "${OMARCHY_ALARM_ARCHIVE_URL:=$REPO_URL/repository/archive/$REPO_REF.tar.gz}"
+  elif [[ -z $REPO_URL ]]; then
+    REPO_URL=https://github.com/rwanglq-ctrl/omarchy-xiaomipad9pm
+  fi
+  if (( dry )); then
+    log "DRY RUN: require git (Debian: apt-get update/install git ca-certificates), clone $REPO_URL, checkout $REPO_REF; no fetch or writes"
+    exit 0
   fi
   tmp=$(mktemp -d "${TMPDIR:-/tmp}/omarchy-alarm-nspawn.XXXXXX")
-  log "not running from a checkout; fetching $REPO_URL ($REPO_REF) into $tmp"
-  if command -v git >/dev/null && timeout 300 git clone --quiet --depth 1 --branch "$REPO_REF" "$REPO_URL" "$tmp/repo"; then
-    :
-  else
-    command -v curl >/dev/null || die "need git or curl to fetch $REPO_URL"
-    rm -rf "$tmp/repo"
-    mkdir -p "$tmp/repo"
-    archive=${OMARCHY_ALARM_ARCHIVE_URL:-$REPO_URL/archive/$REPO_REF.tar.gz}
-    warn "git missing or git clone failed; downloading $archive instead"
-    curl -fsSL --connect-timeout 5 --max-time 300 --retry 2 "$archive" | tar -xz --strip-components=1 -C "$tmp/repo" \
-      || die "could not fetch $REPO_URL. Set OMARCHY_ALARM_REPO / OMARCHY_ALARM_ARCHIVE_URL to a reachable trusted mirror, or run from a local checkout"
+  trap 'rm -rf -- "$tmp"' EXIT
+  trap 'exit 130' INT
+  trap 'exit 143' TERM
+  if ! command -v git >/dev/null; then
+    [[ $OS == debian ]] && command -v apt-get >/dev/null || die "git is required; install git and run this installer again"
+    if (( EUID != 0 )); then
+      command -v sudo >/dev/null || die "git is required; ask the host administrator to install git with apt"
+      privilege=(sudo)
+    fi
+    log 'git is required; installing git and ca-certificates with apt'
+    if [[ ${MIRROR:-global} == cn ]]; then
+      # Bootstrap without needing lib/network.sh or changing the user's sources.
+      # HTTP transport is authenticated by Debian's signed Release metadata.
+      for base in mirrors.tuna.tsinghua.edu.cn mirrors.ustc.edu.cn mirrors.aliyun.com; do
+        printf 'deb http://%s/debian trixie main\n' "$base" > "$tmp/bootstrap.list"
+        chmod 755 "$tmp"; chmod 644 "$tmp/bootstrap.list"
+        if "${privilege[@]}" apt-get "${apt_options[@]}" -o APT::Update::Error-Mode=any -o Dir::Etc::sourcelist="$tmp/bootstrap.list" -o Dir::Etc::sourceparts=- update &&
+           "${privilege[@]}" env DEBIAN_FRONTEND=noninteractive apt-get "${apt_options[@]}" -o Dir::Etc::sourcelist="$tmp/bootstrap.list" -o Dir::Etc::sourceparts=- install -y --no-install-recommends git ca-certificates; then break; fi
+      done
+    else
+      "${privilege[@]}" apt-get "${apt_options[@]}" -o APT::Update::Error-Mode=any update
+      "${privilege[@]}" env DEBIAN_FRONTEND=noninteractive apt-get "${apt_options[@]}" install -y --no-install-recommends git ca-certificates
+    fi
+    command -v git >/dev/null || die "git installation failed; install git with apt and retry"
   fi
+  log "fetching $REPO_URL ($REPO_REF)"
+  clone_ref=$REPO_REF
+  # A SHA is not a branch name. Fetch main plus full history, then resolve it.
+  [[ ! $REPO_REF =~ ^[[:xdigit:]]{7,40}$ ]] || clone_ref=main
+  GIT_TERMINAL_PROMPT=0 timeout 300 git clone --quiet --no-checkout --branch "$clone_ref" -- "$REPO_URL" "$tmp/repo" \
+    || die "git clone failed; use a reachable trusted OMARCHY_ALARM_REPO or a local checkout"
+  # Clone first: --branch accepts branch/tag names, not commit SHAs.
+  revision=$(git -C "$tmp/repo" rev-parse --verify --end-of-options "$REPO_REF^{commit}" 2>/dev/null) ||
+    revision=$(git -C "$tmp/repo" rev-parse --verify --end-of-options "refs/remotes/origin/$REPO_REF^{commit}" 2>/dev/null) ||
+    die "ref '$REPO_REF' was not found in $REPO_URL"
+  git -C "$tmp/repo" checkout --quiet --detach "$revision"
   [[ -f $tmp/repo/install.sh ]] || die "fetched repo has no install.sh"
-  export OMARCHY_ALARM_BOOTSTRAPPED=1
-  # Installer children are noninteractive; sudo can prompt through /dev/tty.
-  exec bash "$tmp/repo/install.sh" "$@" </dev/null
-}
+  log "source revision: $revision"
+  OMARCHY_ALARM_BOOTSTRAPPED=1 bash "$tmp/repo/install.sh" "$@" </dev/null
+)
 
 detect_os() {
   local rel=${OMARCHY_ALARM_OS_RELEASE:-/etc/os-release} id ver like
@@ -139,8 +177,11 @@ main() {
   [[ -n $profile ]] && container_extra=(--profile "$profile" "${container_extra[@]}")
 
   case ${MIRROR:-global} in cn|global|auto) ;; *) die "MIRROR must be cn, global or auto" 2 ;; esac
+  detect_os
   REPO_DIR=""
   find_repo "${all_args[@]}"
+  # Piped bootstrap runs the complete child installer (or prints a dry plan).
+  [[ -n $REPO_DIR ]] || return 0
   # shellcheck source=lib/network.sh
   source "$REPO_DIR/lib/network.sh"
   export NETWORK_DRY_RUN=$dry

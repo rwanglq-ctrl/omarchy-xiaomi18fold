@@ -1,5 +1,43 @@
 # Changelog
 
+## 0.2.5 — 2026-10-14
+
+- Initialize a stable container machine ID before nonboot nspawn startup. The
+  empty ALARM identity caused a reproduced D-Bus/Quickshell crash loop.
+- Qualify Omarchy shell color references to resolve the reproduced Qt 6.12
+  `QtQuick.Color` collision, restoring the themed bar, menus and notifications.
+- Persist each launch's stdout/stderr, stage timestamps, actual runtime logs,
+  shell log and journals before cleanup. Add foreground `arch-selftest`, private
+  reports, explicit missing-log markers and post-teardown log retrieval.
+- Use Linux uptime for readiness/cleanup deadlines, independent of wall-clock
+  corrections; validate machine-ID bytes before shell substitution.
+- Bound owned-session cleanup and signal handling; refuse competing sessions
+  and suppress Weston fallback when cleanup cannot prove the machine is gone.
+  Check sudo, required bind sources, seat socket and launcher before nspawn.
+- Install missing Git through Debian apt, clone then check out branches/tags/full
+  SHAs, and remove archive fallback. Resolve auto mirrors before fetching; keep
+  piped dry runs offline. Add host prerequisites and device-group mapping.
+- Expand bootstrap, identity, display and lifecycle regressions, installed
+  Qt/Quickshell checks and second-install identity comparisons. Document the
+  real ARM VM reproduction and its Android/crosvm fidelity limits. The Pad's
+  original automatic fallback remains undiagnosed; no verified Pad fix claimed.
+- Address independent review: reject leading-newline identities and linked check
+  paths, retry registry queries, honor stops during cleanup, bound session logs
+  to 8 MiB/ten attempts, skip root device-group membership, and document recovery.
+  Restore Gitee source clones for CN, including branch/tag/SHA regression tests;
+  the operator synchronizes Gitee after each origin release. Passwordless sudo is required when enabling the display hook.
+- Provenance: Codex **gpt-6-astra** implemented and verified this continuation.
+  pi **xiaomi/mimo-v2.6-pro-ultraspeed** provided analysis, full-path audit,
+  test plan, plan review, patch review and final review against the plan:
+  `/tmp/mimo-logs/v025-analysis.log`, `/tmp/mimo-logs/v025-audit.log`,
+  `/tmp/mimo-logs/v025-test-plan.log`, `/tmp/mimo-logs/v025-plan-review.log`,
+  `/tmp/mimo-logs/v025-patch-review.log`, `/tmp/mimo-logs/v025-final-review.log`.
+  The audit and plan-review logs include `v025-baseline-plan-addendum.log`.
+  Claude Code **claude-opus-5-5** provided independent review:
+  `/tmp/mimo-logs/v025-claude-review.log` and
+  `/tmp/mimo-logs/v025-claude-review-2.log`. GLM was not used.
+  Raw local logs are not bundled with the source release.
+
 ## 0.2.4 — 2026-10-14
 
 - Remove the Virtual-1 assumption: catch-all preferred monitor rule, any usable

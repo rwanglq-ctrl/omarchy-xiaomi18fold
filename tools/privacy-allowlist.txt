@@ -33,7 +33,7 @@ vendor/alarm-build-key\.asc:.*:base64-blob
 vendor/README\.md:(3|25):(base64-blob|hex-blob)
 
 # Example GitHub release URL is a scanner false positive
-docs/china-network\.md:108:base64-blob
+docs/china-network\.md:110:base64-blob
 
 # Public DNS resolver addresses in installer policy and synthetic regression fixtures
 lib/network\.sh:.*:ipv4-address

@@ -59,21 +59,21 @@
 ## 一键安装
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/rwanglq-ctrl/omarchy-xiaomipad9pm/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/rwanglq-ctrl/omarchy-xiaomipad9pm/main/install.sh | OMARCHY_ALARM_REF=main bash
 ```
 
 ### 国内网络安装
 
-发布版本：`0.2.4`（GitHub）；Gitee 为源码镜像（含 vendor/），以下 v0.2.4 命令需镜像同步后使用。本次不会推送 Gitee。
+发布版本：`0.2.5`。每次发布先推送 GitHub，再由维护者同步 Gitee 的 `main` 和版本标签。以下命令使用 Gitee 源码和国内软件包镜像，无需访问 GitHub；请核对安装器打印的源码 SHA。
 
 ```bash
-curl -fsSL https://gitee.com/zenbardofsuhe/omarchy-xiaomipad9pm/raw/v0.2.4/install.sh | MIRROR=cn OMARCHY_ALARM_REF=v0.2.4 bash -s -- --profile core
+curl -fsSL https://gitee.com/zenbardofsuhe/omarchy-xiaomipad9pm/raw/main/install.sh | MIRROR=cn OMARCHY_ALARM_REPO=https://gitee.com/zenbardofsuhe/omarchy-xiaomipad9pm OMARCHY_ALARM_REF=main bash -s -- --profile core
 ```
 
 **Resume on Pad（失败后继续）**：在 Debian 宿主终端重新运行以下命令。安装器会复用现有 Arch 容器和校验通过的 rootfs 缓存，保留未完成下载的 `.part` 文件；先修复容器 DNS 再继续 pacman。使用相同的用户和 `--rootfs` 参数（如曾指定）。
 
 ```bash
-curl -fsSL https://gitee.com/zenbardofsuhe/omarchy-xiaomipad9pm/raw/v0.2.4/install.sh | MIRROR=cn OMARCHY_ALARM_REPO=https://gitee.com/zenbardofsuhe/omarchy-xiaomipad9pm OMARCHY_ALARM_REF=v0.2.4 bash -s -- --profile core
+curl -fsSL https://gitee.com/zenbardofsuhe/omarchy-xiaomipad9pm/raw/main/install.sh | MIRROR=cn OMARCHY_ALARM_REPO=https://gitee.com/zenbardofsuhe/omarchy-xiaomipad9pm OMARCHY_ALARM_REF=main bash -s -- --profile core
 ```
 
 Pad 切换网络后若容器 DNS 再次失败，重跑相同安装命令可刷新宿主上游 DNS。
@@ -81,7 +81,7 @@ Pad 切换网络后若容器 DNS 再次失败，重跑相同安装命令可刷�
 或先克隆再安装：
 
 ```bash
-git clone --depth 1 https://gitee.com/zenbardofsuhe/omarchy-xiaomipad9pm.git && cd omarchy-xiaomipad9pm
+git clone --branch main --depth 1 https://gitee.com/zenbardofsuhe/omarchy-xiaomipad9pm.git && cd omarchy-xiaomipad9pm
 MIRROR=cn bash ./install.sh --profile core
 ```
 
@@ -89,12 +89,14 @@ MIRROR=cn bash ./install.sh --profile core
 （两者都可达才选 `global`），并打印所选模式；`--dry-run` 不探测、按 `global` 预览。
 默认 `global` 保持海外安装方式。国内模式使用阿里云/清华/中科大 Debian 源，
 清华/中科大/北外/交大 ALARM rootfs 和 pacman 源；原有软件源会备份。
-Omarchy v4.0.4 已随源码附带，安装时无需访问 GitHub。
+Omarchy v4.0.4 已随源码附带，取得本项目源码后无需另行从 GitHub 下载上游。
 国内模式跳过 AUR/yay 和可选 mise，保留仓库字体及默认 Rime 中文输入；
 full 中的 AUR 应用也会跳过。`MIRROR=cn` 要放在管道右侧的 `bash` 前面，放在 curl 左侧无效。
 
-`MIRROR=cn` 且未设置 `OMARCHY_ALARM_REPO` 时，引导阶段默认从 Gitee 镜像拉取源码；
-也可设置 `OMARCHY_ALARM_REPO` / `OMARCHY_ALARM_ARCHIVE_URL` 指向你自己信任的镜像。
+`MIRROR=cn` 默认从 Gitee 拉取本项目源码并选择国内软件包源；`global` 默认从 GitHub 拉取。
+也可设置 `OMARCHY_ALARM_REPO` 指向你自己信任的 Git 镜像。
+引导器缺少 Git 时先通过 Debian apt 安装 `git` 和 CA 证书；克隆后再检出 `OMARCHY_ALARM_REF`，支持分支、标签和完整提交 SHA（SHA 先克隆 `main` 及完整历史再检出）。
+Git 获取失败会明确退出，不请求 Gitee archive，也不再支持 `OMARCHY_ALARM_ARCHIVE_URL`。
 第三方 GitHub 代理不作为默认依赖。完整审计及测试限制见 [国内网络审计](docs/china-network.md)。
 
 
@@ -138,9 +140,9 @@ hypr-switch arch
 hypr-switch debian
 ```
 
-### v0.2.4 黑屏修复 / Safe Pad update
+### v0.2.5 启动诊断 / Safe Pad update
 
-在 **Debian 宿主**的普通终端运行上面的 v0.2.4 国内 Resume 命令。
+在 **Debian 宿主**的普通终端运行上面的 `main` 国内 Resume 命令。
 无需删除容器或 rootfs 缓存；已有配置会由安装器更新。安装器不会重启显示服务。
 当前 shell 立即补上 PATH：`export PATH="$HOME/.local/bin:$PATH"`；后续 bash 会话自动生效。
 
@@ -148,13 +150,15 @@ hypr-switch debian
 不要在正在使用的图形终端内手动重启 weston.service。`--now` 现仅保存选择并提示延后；
 任何 shell 都不会因此重启服务，因为 Android 的 shell 无法可靠判定是否属于显示窗口。
 没有启用且尺寸为正的非 fallback 输出时，启动探测 30 秒后会保存诊断、停止 Arch 容器并回到 Weston
-（诊断和清理通常需数秒，超时路径可能再需约 40 秒）。IPC 有活动输出不代表像素已正确显示；若仍黑屏，使用独立的
+（启动器提前退出会立即收集；诊断和清理有独立超时）。IPC 有活动输出不代表像素已正确显示；若仍黑屏，使用独立的
 Debian 文本终端运行 `~/.local/bin/arch-diag`，然后 `~/.local/bin/hypr-switch debian`，
 完全关闭 Linux Terminal 应用再重新打开。仅在独立 SSH 连接里、接受显示及应用关闭时，才手动运行
 `systemctl --user restart weston.service` 进行恢复。
 
 `arch-diag` 是只读命令，打印私有日志路径 `~/.local/state/omarchy-alarm/arch-diag-*.log`，
-不启动容器、不重启服务、不转储环境变量。日志包含原始 monitors all（可能含工作区名称/设备标识）及过滤后的日志尾部，分享前请检查。
+不启动容器、不重启服务、不转储环境变量。每次启动的 stdout/stderr、阶段时间、原始 monitors all、真实运行时 Hyprland 日志、shell 日志及 journal
+会在清理前保存到同目录的 `arch-session-*.log`，退出容器后仍可查看。
+日志不再过滤 `Window` 行，可能含窗口标题、工作区名称和设备标识；目录 0700、文件 0600，分享前请检查。
 `arch-output` 只查询运行中的 arch-desktop，成功时输出监视器 JSON；失败返回非零。
 
 默认在 nspawn 启动前设置 `LIBGL_ALWAYS_SOFTWARE=1`、`GALLIUM_DRIVER=llvmpipe`、
@@ -170,7 +174,13 @@ Debian 文本终端运行 `~/.local/bin/arch-diag`，然后 `~/.local/bin/hypr-s
 v0.2.4 修复已确认的连接器假设：一次 Pad Weston 诊断中 Virtual-2 已连接、Virtual-1 未连接（编号可能变化）；
 启动 gate 接受任何可用输出，arch-output 自动读取 card0 的 connected 状态。
 回退前保存 monitors all、Arch Hyprland 日志尾部和 DRM status。单显示器触屏使用默认自动映射。
-此修复尚需 Pad 实机验证可见画面；Gitee v0.2.4 命令需镜像同步后使用，本次仅发布 GitHub。
+v0.2.5 在 Debian arm64 + nspawn + virtio-gpu / llvmpipe 的独立 VM 中验证；
+Pad 原来的自动回退尚未复现，不能据此宣称 Pad 根因已确定。详见 [v0.2.5 evidence](docs/v0.2.5-validation.md)。
+
+一次性自检：在独立的 Debian 文本终端或 SSH 中、关闭图形显示服务后运行 `~/.local/bin/arch-selftest`。
+如果需要停止服务，只能从该独立连接运行 `systemctl --user stop weston.service`，它会关闭当前图形应用。
+自检拒绝已有容器或占用中的显示，前台运行一次启动链，不自动切换 Weston，完成后打印唯一日志路径；
+退出 0 表示输出 IPC 就绪且已清理，不等于可见像素已通过验证。失败时分享该日志，勿只拍最后几行。
 
 根因证据和复现范围见 [display investigation](docs/blackscreen-v0.2.3.md)。
 
@@ -186,17 +196,23 @@ v0.2.4 修复已确认的连接器假设：一次 Pad Weston 诊断中 Virtual-2
 
 ## 卸载
 
+在独立的文本终端或 SSH 中操作；这会关闭图形桌面及应用。
+
 ```bash
 # 停止并删除容器（桌面运行时注册的机器名是 arch-desktop）
+systemctl --user stop weston.service
 sudo machinectl terminate arch-desktop 2>/dev/null || true
 sudo rm -rf /var/lib/machines/arch
 
 # 删除宿主启动器
-rm ~/.local/bin/{arch-hyprland,archbox,archsh,hypr-switch,hypr-session,arch-output,arch-diag}
+rm ~/.local/bin/{arch-hyprland,archbox,archsh,hypr-switch,hypr-session,arch-output,arch-diag,arch-selftest,arch-machine-id,arch-log}
 
 # 删除 systemd drop-in（如已安装）
 rm ~/.config/systemd/user/weston.service.d/hyprland.conf
 systemctl --user daemon-reload
+
+# 不再需要诊断证据时，删除私有日志及会话状态
+rm -rf ~/.local/state/omarchy-alarm
 ```
 
 ## 架构文档
@@ -259,7 +275,7 @@ Menu names follow HyperOS (Android 16) and may differ slightly between versions.
 ### One-command install
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/rwanglq-ctrl/omarchy-xiaomipad9pm/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/rwanglq-ctrl/omarchy-xiaomipad9pm/main/install.sh | OMARCHY_ALARM_REF=main bash
 ```
 
 Or clone and run it:
@@ -286,6 +302,10 @@ cd omarchy-xiaomipad9pm
 - **x86-only apps are skipped** (1Password, Spotify, Signal, Steam, ...).
 
 ### Tests
+
+v0.2.5 passes a real Debian arm64 VM desktop test with nspawn, llvmpipe and the
+second DRM connector. The Pad’s original automatic fallback was not reproduced,
+and its exact cause remains undiagnosed. See [validation evidence and limits](docs/v0.2.5-validation.md).
 
 `tests/run.sh --quick` (syntax, ShellCheck, privacy scan, patches, package names, dry-runs, Lua, hygiene)
 runs on every push; `tests/run.sh --full` installs the `core` profile into a fresh Arch Linux ARM rootfs

@@ -14,7 +14,7 @@ scripts() {
   find "$ROOT" -path "$ROOT/.git" -prune -o -type f \( -name '*.sh' -o -path "$ROOT/host/bin/*" -o -path "$ROOT/container/bin/*" \) -print0
 }
 names() { sed -e 's/#.*//' -e '/^[[:space:]]*$/d' "$@" | sort -u; }
-check_mirrors() { bash "$ROOT/tests/mirrors.sh"; bash "$ROOT/tests/installer-regressions.sh"; bash "$ROOT/tests/display-regressions.sh"; }
+check_mirrors() { bash "$ROOT/tests/mirrors.sh"; bash "$ROOT/tests/installer-regressions.sh"; bash "$ROOT/tests/display-regressions.sh"; bash "$ROOT/tests/machine-id-regressions.sh"; bash "$ROOT/tests/bootstrap-regressions.sh"; bash "$ROOT/tests/session-regressions.sh"; bash "$ROOT/tests/audit-regressions.sh"; }
 check_syntax() {
   local f
   while IFS= read -r -d '' f; do bash -n "$f"; done < <(scripts)
@@ -51,6 +51,18 @@ check_patches() {
     git -C "$work" apply --check "$p"
     git -C "$work" apply "$p"
   done
+  # No shipped consumer may resolve QtQuick.Color instead of Omarchy's palette.
+  python3 - "$work/shell" <<'PYCOLORS'
+from pathlib import Path
+import re, sys
+for path in Path(sys.argv[1]).rglob('*.qml'):
+    text = path.read_text()
+    assert not re.search(r'(?<![\w.])Color\.', text), path
+    if 'OmarchyColors.Color.' in text:
+        assert 'import qs.Commons as OmarchyColors' in text, path
+print('PASS qualified shell color consumers')
+PYCOLORS
+  bash "$ROOT/tests/patch-upgrade-regressions.sh"
 }
 check_repo_packages() {
   need packages/repo-core.txt; need packages/repo-full.txt

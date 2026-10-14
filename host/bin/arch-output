@@ -10,7 +10,7 @@ case "$mode" in
     [ "$#" = 2 ] || exit 2
     excluded=$2; mode=''
     case "$excluded" in *[!0-9]*) exit 2 ;; esac ;;
-  ''|--logs|--info|--summary|--all|--connected) [ "$#" -le 1 ] || exit 2 ;;
+  ''|--logs|--info|--instances|--summary|--all|--connected) [ "$#" -le 1 ] || exit 2 ;;
   *) exit 2 ;;
 esac
 # Connector names differ between boots and may differ from Aquamarine names.
@@ -28,6 +28,26 @@ if [ "$mode" = --connected ]; then
   printf '%s\n' "$connected"
   exit 0
 fi
+# Runtime is shared; log collection must not depend on a registered machine.
+if [ "$mode" = --logs ]; then
+  runtime=/run/user/@UID@
+  found=0
+  [ -d "$runtime/hypr" ] || echo "no runtime log dir: $runtime/hypr"
+  entries=$(find "$runtime/hypr" /tmp/hypr -mindepth 1 -maxdepth 2 -type f \
+    \( -name hyprland.log -o -name hyprlandd.log \) -printf '%T@ %p\n' 2>/dev/null | sort -rn | head -4)
+  while IFS= read -r entry; do
+    file=${entry#* }
+    [ -n "$entry" ] && [ -f "$file" ] && [ ! -L "$file" ] || continue
+    found=1
+    printf '\n--- %s ---\n' "$file"
+    stat -c 'modified: %y' "$file"
+    tail -c 131072 "$file"
+  done <<LOGS
+$entries
+LOGS
+  [ "$found" = 1 ] || echo 'no hyprland.log found'
+  exit 0
+fi
 leader=$(timeout --kill-after=1 2 machinectl show arch-desktop -p Leader --value 2>/dev/null) || exit 1
 case "$leader" in ''|*[!0-9]*) exit 1 ;; esac
 [ "$leader" -gt 1 ] || exit 1
@@ -37,27 +57,15 @@ exec timeout --kill-after=1 3 sudo -n nsenter -t "$leader" -a \
   runuser -u '@USER@' -- env XDG_RUNTIME_DIR=/run/user/@UID@ \
   /bin/sh -s -- "$mode" "$connected" <<'INSIDE'
 unset HYPRLAND_INSTANCE_SIGNATURE
-if [ "$1" = --logs ]; then
-  # The UID runtime is shared with the host. Include bounded, timestamped tails
-  # even after a crash or failed IPC; callers must treat them as private evidence.
-  count=0
-  find "$XDG_RUNTIME_DIR/hypr" -mindepth 2 -maxdepth 2 -type f \
-    -name hyprland.log -printf '%T@ %p\n' 2>/dev/null | sort -rn |
-  while IFS= read -r entry; do
-    log=${entry#* }
-    [ -r "$log" ] && [ ! -L "$log" ] || continue
-    instance=${log%/hyprland.log}; instance=${instance##*/}
-    case "$instance" in ''|*[!A-Za-z0-9_]*) continue ;; esac
-    count=$((count+1)); [ "$count" -le 4 ] || break
-    printf '\n--- %s ---\n' "$log"
-    stat -c 'modified: %y' "$log" 2>/dev/null || :
-    tail -c 131072 "$log"
-  done
-  exit 0
-fi
 set -f
+if [ "$1" = --instances ]; then
+  hyprctl -j instances 2>&1
+  exit
+fi
 if [ "$1" = --info ]; then
-  pacman -Q hyprland aquamarine mesa 2>&1
+  id
+  printf 'machine-id bytes: '; wc -c < /etc/machine-id
+  pacman -Q hyprland aquamarine mesa quickshell 2>&1
   exit
 fi
 # Instances may include stale shared runtime sockets. Check PID, executable and UID

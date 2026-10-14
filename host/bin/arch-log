@@ -1,0 +1,44 @@
+#!/bin/bash
+# Private capture: 8 MiB cap, newest 4 MiB on overflow, ten files per log kind.
+# Preserve stdin separately because Python reads this program from its stdin.
+# Service stop signals reach the whole cgroup; drain until the owner closes input.
+trap '' HUP INT TERM USR1
+exec python3 - "$@" 3<&0 <<'PY'
+import os, pathlib, stat, sys
+
+prune_only = len(sys.argv) == 3 and sys.argv[1] == '--prune'
+if not prune_only and len(sys.argv) != 2:
+    raise SystemExit('usage: arch-log FILE | arch-log --prune DIRECTORY')
+path = pathlib.Path(sys.argv[-1])
+state = path if prune_only else path.parent
+for pattern in ('arch-session-*.log', 'arch-diag-*.log'):
+    entries = []
+    for entry in state.glob(pattern):
+        info = entry.lstat()
+        if stat.S_ISREG(info.st_mode) and (prune_only or entry != path):
+            entries.append((info.st_mtime_ns, entry))
+    keep = 10 if prune_only or not path.match(pattern) else 9
+    for _, entry in sorted(entries, reverse=True)[keep:]:
+        entry.unlink()
+if prune_only:
+    raise SystemExit(0)
+limit = 8 * 1024 * 1024
+fd = os.open(path, os.O_RDWR | os.O_NOFOLLOW)
+with os.fdopen(fd, 'r+b', buffering=0) as output:
+    size = output.seek(0, os.SEEK_END)
+    while True:
+        chunk = os.read(3, 65536)
+        if not chunk:
+            break
+        if size + len(chunk) > limit:
+            # Retain recent context in the same one-file report; no sidecar needed.
+            output.seek(max(0, size - limit // 2))
+            recent = output.read()
+            output.seek(0)
+            output.write(b'--- earlier session output discarded (8 MiB limit) ---\n')
+            output.write(recent)
+            output.truncate()
+            size = output.tell()
+        output.write(chunk)
+        size += len(chunk)
+PY

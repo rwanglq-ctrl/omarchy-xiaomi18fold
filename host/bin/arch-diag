@@ -1,46 +1,63 @@
-#!/bin/sh
-# Installed by omarchy-alarm-nspawn (host/install.sh); @PLACEHOLDERS@ filled at install.
-# Read-only, bounded diagnostics. No restarts, fallback shells, or environment dumps.
+#!/bin/bash
+# Installed by omarchy-alarm-nspawn. Private, read-only evidence; never restart.
+set -u
 umask 077
-outdir="$HOME/.local/state/omarchy-alarm"
-mkdir -p "$outdir" || exit 1
-chmod 700 "$outdir" || exit 1
-log=$(mktemp "$outdir/arch-diag-XXXXXXXX.log") || exit 1
-{
-  echo 'omarchy-alarm-nspawn v0.2.4 display diagnostics'
-  date -u
-  uname -srmo
-  printf 'selected mode: '; cat "$HOME/.config/hypr-session-mode" 2>/dev/null || :
-  echo '--- display service ---'
-  timeout 3 systemctl --user show weston.service -p ActiveState -p SubState -p MainPID 2>&1 || :
-  echo '--- DRM / seat / udmabuf ---'
-  ls -l /dev/dri /dev/udmabuf /run/seatd.sock 2>&1 || :
-  for f in /sys/class/drm/card*-*/status; do
-    [ -r "$f" ] || continue
-    printf '%s: ' "$f"; cat "$f"
-  done
-  echo '--- desktop machine ---'
-  timeout 3 machinectl show arch-desktop -p Leader -p State 2>&1 || :
-  echo '--- launcher knobs ---'
-  for knob in arch-hardware-rendering arch-enable-modifiers arch-no-atomic arch-use-arch-mesa; do
-    [ ! -e "$HOME/.config/$knob" ] || printf '%s enabled\n' "$knob"
-  done
-  echo '--- autodetected connected card0 connectors ---'
-  "$HOME/.local/bin/arch-output" --connected 2>&1 || echo 'No connected card0 connector'
-  echo '--- Hyprland monitors all (before fallback when called by gate) ---'
-  "$HOME/.local/bin/arch-output" --all 2>&1 || echo 'No monitor report / probe failed'
-  echo '--- Hyprland log (last 128KiB, Arch runtime files, including failed IPC) ---'
-  "$HOME/.local/bin/arch-output" --logs 2>&1 |
-    sed '/[Ww]indow/d; /[Tt]itle/d; /[Cc]lient/d' || :
-  echo '--- container packages ---'
-  "$HOME/.local/bin/arch-output" --info 2>&1 || :
-  echo '--- DRM driver ---'
-  for f in /sys/class/drm/card*/device/uevent; do
-    [ -r "$f" ] || continue
-    printf '%s: ' "$f"; sed -n 's/^DRIVER=/driver=/p' "$f"
-  done
-  echo '--- display journal (last 150 entries) ---'
-  timeout 3 journalctl --user -u weston.service -n 150 --no-pager -o short-monotonic 2>&1 |
-    sed '/[Ww]indow/d; /[Tt]itle/d; /[Cc]lient/d' || :
-} > "$log"
-printf 'Diagnostics saved (private file; inspect before sharing): %s\n' "$log"
+state="$HOME/.local/state/omarchy-alarm"
+case ${1:-} in
+  --stdout) [[ $# == 1 ]] || exit 2 ;;
+  '')
+    mkdir -p "$state" && chmod 700 "$state" || exit 1
+    log=$(mktemp "$state/arch-diag-XXXXXXXX.log") || exit 1
+    "$HOME/.local/bin/arch-log" --prune "$state"
+    exec 3>&1 >"$log" 2>&1 ;;
+  *) echo 'usage: arch-diag [--stdout]' >&2; exit 2 ;;
+esac
+bounded() { timeout --kill-after=1 3 "$@" 2>&1 || printf 'probe failed: %s\n' "$1"; }
+echo 'omarchy-alarm-nspawn v@VERSION@ display diagnostics (private, unfiltered)'
+date -u
+uname -srmo
+printf 'selected mode: '; cat "$HOME/.config/hypr-session-mode" 2>/dev/null || :
+echo '--- machine identity (values withheld) ---'
+bounded sudo -n bash "$HOME/.local/bin/arch-machine-id" --check '@ROOTFS@'
+echo '--- display service ---'
+bounded systemctl --user show weston.service -p ActiveState -p SubState -p MainPID -p ExecMainStatus -p Result -p ExecMainStartTimestamp -p NRestarts
+echo '--- DRM / seat / udmabuf ---'
+ls -l /dev/dri /dev/udmabuf /run/seatd.sock /run/user/@UID@ 2>&1 || :
+for f in /sys/class/drm/card*-*/status; do
+  [[ -r $f ]] || continue
+  printf '%s: ' "$f"; cat "$f"
+done
+echo '--- desktop machine ---'
+bounded machinectl show arch-desktop -p Leader -p State -p RootDirectory -p Timestamp
+echo '--- launcher knobs ---'
+for knob in arch-hardware-rendering arch-enable-modifiers arch-no-atomic arch-use-arch-mesa; do
+  [[ ! -e $HOME/.config/$knob ]] || printf '%s enabled\n' "$knob"
+done
+echo '--- connected DRM connectors ---'
+"$HOME/.local/bin/arch-output" --connected 2>&1 || echo 'No connected connector'
+echo '--- raw Hyprland instances (including invalid/empty responses) ---'
+"$HOME/.local/bin/arch-output" --instances 2>&1 || echo 'No instance report / namespace probe failed'
+echo '--- Hyprland monitors all ---'
+"$HOME/.local/bin/arch-output" --all 2>&1 || echo 'No monitor report / probe failed'
+echo '--- Hyprland log (shared runtime, available after teardown) ---'
+"$HOME/.local/bin/arch-output" --logs 2>&1 || echo 'log probe failed'
+echo '--- container packages / user ---'
+"$HOME/.local/bin/arch-output" --info 2>&1 || echo 'container unavailable'
+echo '--- Omarchy shell log (persistent container file) ---'
+# A fixed file read, not a guest absolute symlink followed by the host.
+bounded sudo -n chroot '@ROOTFS@' /usr/bin/tail -c 131072 '@CHOME@/.local/state/omarchy/shell.log'
+echo '--- previous persistent launch evidence (last four attempts, 128KiB each) ---'
+while IFS= read -r entry; do
+  file=${entry#* }
+  [[ -f $file && ! -L $file && $file != "${OMARCHY_SESSION_LOG:-}" ]] || continue
+  printf '\n--- %s ---\n' "$file"
+  tail -c 131072 "$file"
+done < <(find "$state" -maxdepth 1 -type f -name 'arch-session-*.log' -printf '%T@ %p\n' 2>/dev/null | sort -rn | head -4)
+echo '--- display journal (this boot, last 128KiB; full launch stream above) ---'
+bounded journalctl --user -b -u weston.service --no-pager -o short-monotonic | tail -c 131072
+echo '--- machine/nspawn system journal (this boot, last 128KiB) ---'
+bounded sudo -n journalctl -b --no-pager -o short-monotonic -u systemd-machined.service -u machine-arch\\x2ddesktop.scope | tail -c 131072
+echo '--- machine journal (may be unavailable in a non-boot container) ---'
+bounded sudo -n journalctl -M arch-desktop -b --no-pager -o short-monotonic | tail -c 131072
+echo '--- diagnostic snapshot complete ---'
+[[ -z ${log:-} ]] || printf 'Diagnostics saved (private file; inspect before sharing): %s\n' "$log" >&3

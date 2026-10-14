@@ -97,3 +97,21 @@ syscalls). `tests/ci.sh` sets it automatically on non-aarch64 hosts. QEMU binfmt
 preserve credentials (`C` flag) for the real ALARM sudo binary; in rootless Docker
 this can be registered in the disposable daemon user namespace without changing
 the host registration. Native runs leave the fresh rootfs sandbox setting alone.
+
+The v0.2.5 regressions also exercise real Git branch/tag/SHA checkout, missing-Git
+apt bootstrap, Gitee-only CN branch/tag/SHA requests (including auto-selected CN),
+zero archive requests, offline dry-run, machine-ID creation and
+stable reruns, and an owned launch/cleanup lifecycle with TERM/INT/HUP and private
+persistent evidence. `tests/session-regressions.sh` covers foreground selftest,
+registration failures, preflight failures, stuck cleanup and fallback suppression.
+Full integration loads the patched shell colors through the installed Qt and
+Quickshell to catch the Qt 6.12 `Color` collision, and compares persistent machine
+identity on the second install. These checks do not replace the DRM e2e gate.
+
+The separate release e2e uses a Debian arm64 system VM, real nspawn/seatd and
+virtio-gpu with the first connector off and the second on. It requires usable
+Hyprland IPC, a Quickshell IPC round trip, unchanged compositor/shell processes
+for at least 60 seconds, and two recognizable desktop screenshots at least
+30 seconds apart. A nonblack pixel count or wallpaper alone is insufficient.
+Fallback, selftest and retained diagnostics are verified separately. See
+[v0.2.5 validation](../docs/v0.2.5-validation.md) for evidence and fidelity limits.

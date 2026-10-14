@@ -1,11 +1,11 @@
-# Install network audit and mainland China policy (0.2.0)
+# Install network audit and mainland China policy (updated for 0.2.5)
 
 Scope: every tracked entry point in `install.sh`, `host/`, `container/`,
 `tools/`, `packages/`, `patches/`, `config/`, plus code invoked from pinned
-Omarchy v4.0.4. Audit date: 2026-10-13. See
+Omarchy v4.0.4. Initial audit: 2026-10-13; bootstrap re-audit: 2026-10-14. See
 [validation and measured reachability](china-validation.md) for test results.
 
-## Root causes
+## Original network failures (before 0.2.0)
 
 The documented pipe bootstrap requires GitHub raw before the script can
 select a mirror. Its next fetch clones GitHub (or downloads an archive that
@@ -20,13 +20,13 @@ also turn blocked endpoints into long apparent hangs.
 
 | Location / stage | Original destination or operation | CN behavior |
 | --- | --- | --- |
-| README / install.sh pipe entry | `raw.githubusercontent.com/rwanglq-ctrl/omarchy-xiaomipad9pm/main/install.sh` | Cannot rewrite an already blocked bootstrap URL. Transfer the complete checkout, or use a trusted reachable repository mirror. No public CN bootstrap is claimed. |
-| install.sh bootstrap | `git clone --depth 1 --branch REF https://github.com/rwanglq-ctrl/omarchy-xiaomipad9pm`; configurable `OMARCHY_ALARM_REPO` / `OMARCHY_ALARM_REF` | Requires local checkout or explicitly configured trusted reachable mirror in CN mode; otherwise fails immediately with instructions. Clone deadline 120 seconds. |
-| install.sh archive fallback without git | `REPO/archive/REF.tar.gz`, normally GitHub → `codeload.github.com` | Same explicit mirror requirement; curl connect 5s / total 300s / 2 retries. Archive is downloaded data, then the selected repo's install.sh executes. |
-| lib/network.sh auto mode | HEAD `https://github.com` | 2s connect / 4s total probe, failure selects CN; dry runs do not probe. This is an optional detection probe, not an install dependency. Explicit CN never probes GitHub. |
+| README / install.sh pipe entry | GitHub raw `/main/install.sh` | CN commands fetch `https://gitee.com/zenbardofsuhe/omarchy-xiaomipad9pm/raw/main/install.sh`; no GitHub access required. Check the resolved commit printed by bootstrap. |
+| install.sh bootstrap | `git clone --no-checkout --branch REF` (main for a SHA), then verified commit checkout; `OMARCHY_ALARM_REPO` / `OMARCHY_ALARM_REF` | CN defaults to Gitee; `OMARCHY_ALARM_REPO=gitee` is also accepted. Explicit trusted repository overrides are honored. Branches, tags and full commit SHA supported; bounded 300s clone, fail clearly on error. |
+| install.sh Git prerequisite | Debian apt installs `git ca-certificates` when Git is missing | CN uses temporary signed HTTP mainland apt sources for bootstrap, then normal host setup selects HTTPS. No source archive fallback or archive override. |
+| install.sh / lib/network.sh auto mode | HEAD probes of both `https://github.com` and `https://raw.githubusercontent.com` | Both must succeed for global; otherwise CN. Bounded probes, offline dry runs. Bootstrap selects before fetching the checkout. |
 | host/install.sh apt | Existing `/etc/apt/sources.list{,.d/*}`; Debian defaults `deb.debian.org/debian`, `/debian-security`, `security.debian.org/debian-security`; `apt-get update/install` | Rewrite only known official archive prefixes, preserving suites/components/signed-by; save originals. TUNA, USTC, Aliyun selection checks trixie and trixie-security Release with 3s connect / 8s total. Apt uses 15s timeouts and 2 retries; failed metadata updates advance through all three mirrors, with update errors treated as failures. Custom sources remain user controlled. |
 | host/install.sh rootfs | `http://os.archlinuxarm.org/os/ArchLinuxARM-aarch64-latest.tar.gz`, same URL plus `.md5` and `.sig`; `OMARCHY_ALARM_TARBALL_URL` override | HTTPS TUNA → USTC → BFSU → SJTU, bounded probes; download+MD5 pair from one mirror, with full artifact fallback. Override is honored without guessing adjacent mirror paths. |
-| host/install.sh signature key | Previously GPG HKPS `keyserver.ubuntu.com`, `OMARCHY_ALARM_KEYSERVER` override | Local vendored public key; no keyserver fetch. Existing fingerprint checked against VALIDSIG; BADSIG is fatal. Missing GPG/signature retains the preexisting warning policy. MD5 alone is not publisher authentication. |
+| host/install.sh signature key | Previously GPG HKPS `keyserver.ubuntu.com`, `OMARCHY_ALARM_KEYSERVER` override | Local vendored public key; no keyserver fetch. Existing fingerprint checked against VALIDSIG; Downloaded but unverifiable signatures are fatal. Unavailable verification emits an explicit UNVERIFIED warning. MD5 alone is not publisher authentication. |
 | host/install.sh rootfs setup | `pacman -Syu base-devel git sudo` against bundled ALARM `/etc/pacman.d/mirrorlist`, generally `mirror.archlinuxarm.org` | Replace mirrorlist before the first sync, including reused rootfs. TUNA/USTC/BFSU/SJTU, `$arch/$repo`; pacman handles per-file mirror fallback. `pacman-key --init/--populate` uses installed local keys, not a network keyserver. |
 | container/install.sh repository packages | `pacman -Syu` for packages/repo-core.txt and additive repo-full.txt; dependencies and fonts from ALARM sync DBs | Same four mainland mirrors before syncing, original mirrorlist backed up. Global mode retains existing sources. |
 | container/install.sh yay bootstrap | `git clone https://aur.archlinux.org/yay.git`; makepkg sync dependencies, source archives, Go modules; build/install yay | CN skips all AUR builds explicitly; stock Rime retained. Global behavior unchanged. |
@@ -89,8 +89,10 @@ MIRROR=cn bash ./install.sh --profile core
 reachability, not location or all possible filtering rules. A reachable
 GitHub page does not prove its raw/releases/CDN are reachable: use explicit
 CN where needed. A full CN profile installs repository extras and skips
-AUR extras. A public domestic bootstrap needs separate publication; a local
-commit does not create one. Source mirrors and URL overrides are trust inputs.
+AUR extras. Every release is pushed to origin first, then the operator synchronizes
+Gitee main and the release tag. Use README's Gitee command for CN Pad installs.
+Check the bootstrap SHA; the mirror may lag during that publication handoff.
+Source mirrors and URL overrides are trust inputs.
 
 ## AUR recipe source audit
 

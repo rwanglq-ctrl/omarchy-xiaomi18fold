@@ -1,0 +1,4 @@
+#!/bin/sh
+# Installed by omarchy-alarm-nspawn. Foreground attempt; never starts Weston.
+[ "$#" = 0 ] || { echo 'usage: arch-selftest' >&2; exit 2; }
+exec timeout --foreground --signal=USR1 --kill-after=60 90 "$HOME/.local/bin/hypr-session" --selftest

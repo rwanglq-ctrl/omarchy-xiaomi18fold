@@ -26,8 +26,8 @@ ALARM_KEY="68B3 537F 39A3 13B3 E574  D067 7719 3F15 2BDB E6A6"
 ALARM_KEY=${ALARM_KEY// /}
 CACHE_DIR=${OMARCHY_ALARM_CACHE:-/var/cache/omarchy-alarm-nspawn}
 DEFAULT_HOME_BINDS="Downloads Pictures Videos Work"
-LAUNCHERS=(arch-hyprland archbox archsh hypr-switch hypr-session arch-output arch-diag)
-APT_PACKAGES=(systemd-container seatd curl ca-certificates libarchive-tools sudo)
+LAUNCHERS=(arch-hyprland archbox archsh hypr-switch hypr-session arch-output arch-diag arch-selftest arch-machine-id arch-log)
+APT_PACKAGES=(systemd-container seatd curl ca-certificates libarchive-tools sudo git gnupg kmod util-linux psmisc weston python3)
 MACHINE=arch-desktop
 
 DRY_RUN=0
@@ -98,7 +98,7 @@ export NETWORK_DRY_RUN=$DRY_RUN
 [[ -z $RENDER_DIR ]] || NETWORK_DRY_RUN=1
 network_init
 network_select_alarm
-[[ $MIRROR != cn ]] || APT_PACKAGES+=(gnupg)
+# gnupg is required in every mirror mode.
 
 [[ $ROOTFS == /* ]] || die "--rootfs must be an absolute path: $ROOTFS"
 ROOTFS=${ROOTFS%/}
@@ -146,7 +146,8 @@ done
 # --- templates -------------------------------------------------------------------------
 # render SRC DST: fill in the @PLACEHOLDERS@ of a host/ template.
 render() {
-  sed -e "s|@ROOTFS@|$ROOTFS|g" \
+  sed -e "s|@VERSION@|$(cat "$SCRIPT_DIR/../VERSION")|g" \
+      -e "s|@ROOTFS@|$ROOTFS|g" \
       -e "s|@USER@|$TARGET_USER|g" \
       -e "s|@UID@|$T_UID|g" \
       -e "s|@HOME@|$T_HOME|g" \
@@ -217,6 +218,13 @@ else
   note "all installed"
 fi
 
+# sudo is itself an apt dependency; check its availability only after that step.
+check_target_sudo() {
+  command -v sudo >/dev/null || die "sudo-unavailable: apt did not install sudo"
+  runuser -u "$TARGET_USER" -- sudo -n true </dev/null || die "sudo-needs-password: $TARGET_USER needs noninteractive sudo for desktop launch; configure host sudo access and retry"
+}
+if (( ! DRY_RUN && DISPLAY_HOOK )); then check_target_sudo; fi
+
 # --- 2. seatd --------------------------------------------------------------------------
 # seatd hands the container's Hyprland the DRM and input devices over /run/seatd.sock.
 # Only members of the group given with `seatd -g` (Debian: video) may connect.
@@ -281,7 +289,7 @@ fetch_rootfs() {
 verify_gpg() {
   local tarball=$1 gh status
   if ! command -v gpg >/dev/null; then
-    warn "gpg not installed; skipping the signature check (md5 only)"
+    warn "UNVERIFIED: gpg not installed; rootfs has MD5 transfer integrity only"
     return 0
   fi
   if (( DRY_RUN )); then
@@ -290,12 +298,12 @@ verify_gpg() {
     return 0
   fi
   if ! curl -fsL --connect-timeout 5 --max-time 30 --retry 2 -o "$tarball.sig" "$ALARM_URL.sig"; then
-    warn "could not download $ALARM_URL.sig; skipping the signature check"
+    warn "UNVERIFIED: could not download $ALARM_URL.sig; rootfs has MD5 transfer integrity only"
     return 0
   fi
   gh=$(mktemp -d)
   if ! gpg --homedir "$gh" --batch --quiet --import "$SCRIPT_DIR/../vendor/alarm-build-key.asc" >/dev/null 2>&1; then
-    warn "could not import the vendored Arch Linux ARM signing key; skipping the signature check"
+    warn "UNVERIFIED: could not import the vendored Arch Linux ARM signing key"
     rm -rf "$gh"; return 0
   fi
   status=$(gpg --homedir "$gh" --batch --status-fd 1 --verify "$tarball.sig" "$tarball" 2>/dev/null || true)
@@ -305,7 +313,7 @@ verify_gpg() {
   elif grep -q '^\[GNUPG:\] BADSIG' <<<"$status"; then
     die "BAD GPG signature on $tarball — do not use it (delete it and retry)"
   else
-    warn "GPG signature could not be verified against $ALARM_KEY"
+    die "GPG signature was downloaded but could not be verified against $ALARM_KEY"
   fi
 }
 
@@ -328,6 +336,9 @@ if [[ $rootfs_state != arch ]]; then
   fetch_rootfs
   run network_extract_rootfs "${TARBALL:-$CACHE_DIR/${ALARM_URL##*/}}" "$ROOTFS"
 fi
+
+# Non-boot nspawn never initializes the tarball's empty machine-id.
+run bash "$SCRIPT_DIR/../lib/machine-id.sh" "$ROOTFS"
 
 if [[ $MIRROR == cn ]]; then
   if (( DRY_RUN )); then note "configure mainland pacman mirrors before first pacman sync"; else network_pacman_config "$ROOTFS/etc/pacman.d/mirrorlist"; fi
@@ -356,7 +367,13 @@ for g in "$seat_group" video render input; do
   gid=$(getent group "$g" | cut -d: -f3 || true)
   [[ -n $gid ]] && host_groups+=("$g:$gid")
 done
-mapfile -t host_groups < <(printf '%s\n' "${host_groups[@]}" | awk -F: 'NF && !seen[$2]++')
+# Device ownership is authoritative, including udmabuf (often host group kvm).
+for node in /run/seatd.sock /dev/udmabuf /dev/dri/card* /dev/dri/renderD* /dev/input/event*; do
+  [[ -e $node ]] || continue
+  gid=$(stat -c %g "$node")
+  host_groups+=("device$gid:$gid")
+done
+mapfile -t host_groups < <(printf '%s\n' "${host_groups[@]}" | awk -F: 'NF && $2 != 0 && !seen[$2]++')
 
 # Runs inside the rootfs as root. Arguments: user uid gid group-name host-groups...
 # shellcheck disable=SC2016  # expanded inside the container, not here

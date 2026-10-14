@@ -403,13 +403,10 @@ STUB
        bash -s -- --dry-run --user tester < "$ROOT/install.sh" > "$out" 2>&1; then
     fail "piped install.sh failed: $(tail -n 5 "$out")"
   fi
-  assert_has "$out" 'not running from a checkout'
-  assert_has "$out" 'mirror mode: global'
-  assert_has "$out" 'STUB-HOST'
-  assert_has "$out" '--dry-run'
-  assert_has "$out" 'tester'
-  assert_lacks "$out" 'STUB-CONTAINER'
-  pass 'piped install.sh bootstraps via git and drives the stubbed host side in dry-run'
+  assert_has "$out" 'DRY RUN: require git'
+  assert_has "$out" 'no fetch or writes'
+  assert_lacks "$out" 'STUB-HOST'
+  pass 'piped dry-run is now genuinely offline and does not clone or run installers'
 
   # Execute both installer children with pending stdin, rather than only previewing.
   cat > "$fake/host/install.sh" <<'STUB'
