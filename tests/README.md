@@ -115,3 +115,10 @@ for at least 60 seconds, and two recognizable desktop screenshots at least
 30 seconds apart. A nonblack pixel count or wallpaper alone is insufficient.
 Fallback, selftest and retained diagnostics are verified separately. See
 [v0.2.5 validation](../docs/v0.2.5-validation.md) for evidence and fidelity limits.
+
+For a redirector timeout during full integration, select a direct trusted HTTPS
+ALARM mirror with `ALARM_TEST_PACMAN_SERVER`, preserving literal `$arch/$repo`,
+for example `ALARM_TEST_PACMAN_SERVER='https://ca.us.mirror.archlinuxarm.org/$arch/$repo' bash tests/full.sh`. The full harness
+prepends it only in its newly extracted disposable rootfs and logs the choice;
+original mirrors remain fallback. This does not alter installer/CN routing or
+relax package signatures. Record the selected mirror in validation evidence.

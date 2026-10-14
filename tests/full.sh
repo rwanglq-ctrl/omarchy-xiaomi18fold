@@ -36,6 +36,18 @@ sudo -n chmod 755 "$rootfs"
 sudo -n mkdir -p "$rootfs/dev" "$rootfs/proc" "$rootfs/sys" "$rootfs/src"
 sudo -n rm -f "$rootfs/etc/resolv.conf"
 sudo -n cp -L /etc/resolv.conf "$rootfs/etc/resolv.conf"
+# Optional direct mirror for repeatable CI runs when the redirector times out.
+# This changes only the fresh disposable test rootfs; installer routing is tested
+# separately and remains unchanged. Preserve the original mirrors as fallback.
+if [[ -n ${ALARM_TEST_PACMAN_SERVER:-} ]]; then
+  [[ $ALARM_TEST_PACMAN_SERVER == https://* && $ALARM_TEST_PACMAN_SERVER != *$'\n'* && $ALARM_TEST_PACMAN_SERVER != *$'\r'* ]] || {
+    echo 'ALARM_TEST_PACMAN_SERVER must be one HTTPS server URL' >&2; exit 2;
+  }
+  echo "Integration pacman server: $ALARM_TEST_PACMAN_SERVER"
+  sudo -n cp "$rootfs/etc/pacman.d/mirrorlist" "$rootfs/etc/pacman.d/mirrorlist.test-original"
+  { printf 'Server = %s\n' "$ALARM_TEST_PACMAN_SERVER"; sudo -n cat "$rootfs/etc/pacman.d/mirrorlist.test-original"; } |
+    sudo -n tee "$rootfs/etc/pacman.d/mirrorlist" >/dev/null
+fi
 # QEMU user-mode does not implement Landlock. This is only the fresh disposable
 # test rootfs; never relax the installed Pad's pacman configuration.
 if [[ ${ALARM_TEST_EMULATED:-0} == 1 ]]; then

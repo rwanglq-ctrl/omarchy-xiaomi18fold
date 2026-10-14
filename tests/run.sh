@@ -14,7 +14,7 @@ scripts() {
   find "$ROOT" -path "$ROOT/.git" -prune -o -type f \( -name '*.sh' -o -path "$ROOT/host/bin/*" -o -path "$ROOT/container/bin/*" \) -print0
 }
 names() { sed -e 's/#.*//' -e '/^[[:space:]]*$/d' "$@" | sort -u; }
-check_mirrors() { bash "$ROOT/tests/mirrors.sh"; bash "$ROOT/tests/installer-regressions.sh"; bash "$ROOT/tests/display-regressions.sh"; bash "$ROOT/tests/machine-id-regressions.sh"; bash "$ROOT/tests/bootstrap-regressions.sh"; bash "$ROOT/tests/session-regressions.sh"; bash "$ROOT/tests/audit-regressions.sh"; }
+check_mirrors() { bash "$ROOT/tests/mesa-regressions.sh"; bash "$ROOT/tests/mirrors.sh"; bash "$ROOT/tests/installer-regressions.sh"; bash "$ROOT/tests/display-regressions.sh"; bash "$ROOT/tests/machine-id-regressions.sh"; bash "$ROOT/tests/bootstrap-regressions.sh"; bash "$ROOT/tests/session-regressions.sh"; bash "$ROOT/tests/audit-regressions.sh"; }
 check_syntax() {
   local f
   while IFS= read -r -d '' f; do bash -n "$f"; done < <(scripts)

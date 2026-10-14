@@ -2,6 +2,16 @@
 # Installed by omarchy-alarm-nspawn (host/install.sh); @PLACEHOLDERS@ filled at install.
 # One owner, one persistent attempt log, bounded diagnostics before teardown.
 set -u
+# Keep systemd's activation socket away from logger stdout/stderr saves (3/4).
+activation=0
+if [[ ${LISTEN_PID:-} == "$$" && ${LISTEN_FDS:-} == 1 ]]; then
+  exec 7<&3
+  activation=1
+fi
+weston() {
+  if (( activation )); then exec 3<&7 7<&-; fi
+  exec /usr/bin/weston --modules=systemd-notify.so --xwayland --continue-without-input
+}
 state="$HOME/.local/state/omarchy-alarm"
 owner="$state/desktop-owner"
 child=''; owned=0; finished=0; selftest=0; direct=0; log=''; logger=''; stop_rc=0
@@ -86,39 +96,73 @@ case ${1:-} in
   *) echo 'usage: hypr-session [--selftest|--direct]' >&2; exit 2 ;;
 esac
 if (( ! direct && $# )); then exit 2; fi
-mode=$(cat "$HOME/.config/hypr-session-mode" 2>/dev/null || echo debian)
-(( selftest || direct )) && mode=arch
-if [[ $mode != arch ]]; then
-  machines=$(list_machines) || { echo 'registry-unavailable: refusing Weston without a verified free seat' >&2; exit 2; }
-  if grep -q '^arch-desktop[[:space:]]' <<< "$machines"; then echo 'registration-collision: arch-desktop still running; refusing Weston' >&2; exit 1; fi
-  exec /usr/bin/weston --modules=systemd-notify.so --xwayland --continue-without-input
-fi
-# Refusal is non-destructive and creates no evidence file: no attempt was made.
-if ! machines=$(list_machines); then
-  echo 'registry-unavailable: cannot determine whether a desktop is running' >&2; exit 2
-fi
-if grep -q '^arch-desktop[[:space:]]' <<< "$machines"; then
-  echo 'registration-collision: arch-desktop already exists; refusing an unowned machine' >&2; exit 2
-fi
+# Kernel flock is authoritative. Never unlink its inode: inherited descriptors
+# can keep a real lock alive after the recorded launcher PID has died.
 runtime=/run/user/@UID@
 if [[ ! -d $runtime || ! -O $runtime ]]; then echo 'runtime-invalid: missing or wrong owner' >&2; exit 2; fi
-exec 8>"$runtime/omarchy-alarm-session.lock" || exit 2
-if ! flock -n 8; then echo 'session-busy: another launch owns the seat' >&2; exit 2; fi
-if (( selftest || direct )); then
-  status=$(timeout --kill-after=1 2 systemctl --user is-active weston.service 2>/dev/null || :)
-  case "$status" in active|activating|deactivating|reloading)
-    echo 'display-active: close the display service from an independent terminal first' >&2; exit 2 ;;
-  esac
-  if timeout --kill-after=1 3 sudo -n fuser -s /dev/dri/card*; then
-    echo 'seat-busy: a process is using a DRM card' >&2; exit 2
+lock="$runtime/omarchy-alarm-session.lock"
+report_users() {
+  local file pids pid
+  for file in "$lock" /dev/dri/card*; do
+    [[ -e $file ]] || continue
+    pids=$(exec 8>&- 7<&-; timeout --kill-after=1 3 sudo -n fuser "$file" 2>/dev/null || :)
+    for pid in $pids; do
+      [[ $pid =~ ^[0-9]+$ && $pid != "$$" ]] || continue
+      printf 'seat-user: file=%s pid=%s cmdline=' "$file" "$pid" >&2
+      timeout --kill-after=1 2 ps -p "$pid" -o args= >&2 || :
+    done
+  done
+  timeout --kill-after=1 2 systemctl --user show weston.socket weston.service -p Id -p ActiveState -p SubState -p MainPID >&2 || :
+  timeout --kill-after=1 2 machinectl show arch-desktop -p Leader -p State >&2 || :
+}
+exec 8>>"$lock" || exit 2
+end=$(($(monotonic_seconds) + 15))
+while ! flock -n 8; do
+  if (( ! selftest )) || ! before_deadline "$end"; then
+    echo 'session-busy: live kernel lock; waiting for its owner did not free the seat (no process killed)' >&2
+    report_users; exit 2
   fi
+  sleep 0.2
+done
+old_pid=$(cat "$lock" 2>/dev/null || :)
+if [[ $old_pid =~ ^[0-9]+$ ]] && ! kill -0 "$old_pid" 2>/dev/null && [[ ! -d /proc/$old_pid ]]; then
+  echo "session-stale: clearing dead PID $old_pid metadata under the acquired lock" >&2
+fi
+# Clear stale metadata only with exclusive ownership; preserve the inode.
+printf '%s\n' "$$" > "$lock"
+mode=$(cat "$HOME/.config/hypr-session-mode" 2>/dev/null || echo debian)
+(( selftest || direct )) && mode=arch
+if (( selftest || direct )); then
+  end=$(($(monotonic_seconds) + 15))
+  while :; do
+    status=$(timeout --kill-after=1 2 systemctl --user is-active weston.service 2>/dev/null || :)
+    busy=''
+    case "$status" in active|activating|deactivating|reloading) busy=display-active ;; esac
+    if timeout --kill-after=1 3 sudo -n fuser -s /dev/dri/card*; then busy=seat-busy; fi
+    machines=$(list_machines) || { echo 'registry-unavailable: cannot determine whether a desktop is running' >&2; exit 2; }
+    if grep -q '^arch-desktop[[:space:]]' <<< "$machines"; then busy=registration-collision; fi
+    [[ -n $busy ]] || break
+    if (( ! selftest )) || ! before_deadline "$end"; then
+      echo "$busy: seat did not become free; refusing an unrelated live owner (no process killed)" >&2
+      report_users; exit 2
+    fi
+    sleep 0.2
+  done
+else
+  machines=$(list_machines) || { echo 'registry-unavailable: cannot determine whether a desktop is running' >&2; exit 2; }
+  if grep -q '^arch-desktop[[:space:]]' <<< "$machines"; then
+    echo 'registration-collision: arch-desktop already exists; refusing an unowned machine' >&2; report_users; exit 2
+  fi
+fi
+if [[ $mode != arch ]]; then
+  weston
 fi
 umask 077
 mkdir -p "$state" && chmod 700 "$state" || exit 1
 log=$(mktemp "$state/arch-session-XXXXXXXX.log") || exit 1
 exec 3>&1 4>&2
 printf 'Session evidence: %s\n' "$log" >&4
-exec > >("$HOME/.local/bin/arch-log" "$log") 2>&1
+exec > >(exec 8>&- 7<&-; "$HOME/.local/bin/arch-log" "$log") 2>&1
 logger=$!
 trap close_log EXIT
 export OMARCHY_SESSION_LOG=$log
@@ -133,7 +177,7 @@ finish() {
   (( finished == 0 )) || return 0
   finished=1
   stage "$why" "exit=$rc"
-  timeout --kill-after=1 20 "$HOME/.local/bin/arch-diag" --stdout || stage diagnostics-incomplete
+  timeout --kill-after=1 20 "$HOME/.local/bin/arch-diag" --stdout 8>&- 7<&- || stage diagnostics-incomplete
   if (( owned )); then stop_arch || rc=1; fi
   (( stop_rc == 0 )) || rc=$stop_rc
   if (( ! selftest && ! direct && ! owned && stop_rc == 0 )) && [[ $why == gate-timeout || $why == launcher-exit || $why == registration-failed ]]; then
@@ -156,7 +200,7 @@ trap 'on_signal 124 selftest-timeout' USR1
 stage session-start "selftest=$selftest direct=$direct"
 printf '%s\n' "$token" > "$owner" || exit 1
 owned=1
-OMARCHY_SESSION_INTERNAL=1 "$HOME/.local/bin/arch-hyprland" "$@" &
+OMARCHY_SESSION_INTERNAL=1 "$HOME/.local/bin/arch-hyprland" "$@" 8>&- 7<&- &
 child=$!
 ready=0; registered=0
 # The readiness deadline uses the same monotonic clock as cleanup.
@@ -164,14 +208,14 @@ deadline=$(($(monotonic_seconds) + 30))
 while kill -0 "$child" 2>/dev/null && before_deadline "$deadline"; do
   leader=$(show_machine -p Leader --value 2>/dev/null || :)
   if [[ $leader =~ ^[0-9]+$ && $leader -gt 1 ]]; then registered=1; fi
-  if "$HOME/.local/bin/arch-output" >/dev/null 2>&1; then ready=1; break; fi
+  if "$HOME/.local/bin/arch-output" >/dev/null; then ready=1; break; fi
   sleep 1
 done
 if (( ready )); then
   stage output-ready "leader=${leader:-unknown}"
   if (( selftest )); then
     sleep 3
-    if "$HOME/.local/bin/arch-output" >/dev/null 2>&1; then
+    if "$HOME/.local/bin/arch-output" >/dev/null; then
       finish 0 selftest-ready; exit $?
     fi
     finish 1 output-lost; exit $?
@@ -191,4 +235,4 @@ if (( selftest || direct )); then exit "$result"; fi
 if (( owned )); then exit 1; fi
 (( stop_rc == 0 )) || exit "$stop_rc"
 trap - HUP INT TERM USR1
-exec /usr/bin/weston --modules=systemd-notify.so --xwayland --continue-without-input
+weston

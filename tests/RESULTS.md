@@ -296,3 +296,37 @@ Final G4 PASS: `/tmp/v025-full-suite-8.log` passed **all 12 checks in 969 second
 Independent Claude review 2: **code PASS, evidence gate PASS**, with no permission blocks. It independently inspected screenshots/logs, checked the source snapshot, ran eight regression scripts plus five session repeats, and reproduced CN/SHA/auto mutations. Two low documentation findings were corrected; the only non-Markdown difference from tested source is the explanatory comment on arch-log line 2 (executable body unchanged). Evidence: `/tmp/mimo-logs/v025-claude-review-2.log`, `v025-claude-review-2-resolutions.md`, `/tmp/v025-evidence/cn-postreview-source-match.log`. Docker mount metadata in `full-suite-8-mounts.json` confirms the frozen source was mounted read-only at `/src`.
 
 MIMO final review against the plan: **release gate PASS**, no blocking findings (`/tmp/mimo-logs/v025-final-review.log`). It independently checked source fidelity, the full-suite log, screenshots, CN requirements and review resolutions. All release gates passed before commit/tag/push. The operator synchronizes Gitee main and v0.2.5 after the origin push; CN commands serve this release after that sync. Repeated upstream migration notifications remain a cosmetic limitation. The Pad fallback remains undiagnosed.
+
+
+## v0.2.6 — 2026-10-14
+
+Final `tests/run.sh --full`: **12/12 PASS, 1041 seconds, exit 0**.
+Evidence: `/tmp/v026-evidence/full-suite-release.log` (also `full-suite.log`).
+The aarch64/QEMU user-mode runner completed fresh core installation, configuration
+validation, real Qt/Quickshell assertions and second-run idempotence. All
+non-Markdown implementation/test files match the frozen snapshot, recorded in
+`/tmp/v026-evidence/release-source-match.log`.
+
+The previous complete attempt passed all eleven preliminary checks but failed
+on a libunibreak download timeout at the ALARM redirector. The passing full rerun
+used the test-only `ALARM_TEST_PACMAN_SERVER` with the official California HTTPS
+mirror, retaining the original fallback. No checks or package signatures were
+skipped. Both required reviewers approved the small harness override.
+
+The separate Debian arm64 system VM passes startup, monitor IPC, shell IPC,
+selftest and restoration of weston.socket/service with the final staged Debian
+Mesa 25.0.7 / LLVM 19.1.7 stack and distro Hyprland 0.56.2. Staging under umask 077
+is verified. The host socket stays intact while nspawn privately masks it;
+WAYLAND_DISPLAY/SOCKET and forced AQ/LIBGL overrides are absent at startup.
+Evidence: `vm-gold-final.log`, `vm-gold-runtime.log`, `vm-gold-scanout.png` under
+`/tmp/v026-evidence/`. The scanout was visually inspected; repeated migration
+notifications are existing test-VM state.
+
+MIMO `xiaomi/mimo-v2.6-pro-ultraspeed` gold analysis/final review and independent
+Claude `claude-opus-5-5` review 3 approve the code after correcting restrictive
+umask permissions. Logs: `/tmp/mimo-logs/v026-gold-diff.log`,
+`v026-gold-final-review.log`, `v026-claude-review-3.log`.
+Implementation/validation: Codex gpt-6-astra. See
+[gold differences and build decision](../docs/gold-alignment.md) and
+[validation](../docs/v0.2.6-validation.md). Physical Pad testing remains outstanding;
+custom 0.55 requiredness is unproven, and no unknown binary build is distributed.

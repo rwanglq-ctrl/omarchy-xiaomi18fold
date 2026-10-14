@@ -13,24 +13,41 @@ with tempfile.TemporaryDirectory(prefix='session-regressions-') as tmp:
     (home/'.config').mkdir(); (home/'.config/hypr-session-mode').write_text('arch\n')
     fs=w/'rootfs'; (fs/'usr/bin').mkdir(parents=True); (fs/'etc').mkdir()
     (fs/'usr/bin/start-hyprland').write_text('#!/bin/sh\nexit 0\n'); (fs/'usr/bin/start-hyprland').chmod(0o755)
+    drm=w/'drm'; drm.mkdir()
+    for connector in ['Virtual-1','Virtual-2']:
+        d=drm/('card0-'+connector); d.mkdir(); (d/'status').write_text('disconnected\n')
+    live=runtime/'hypr/live'; live.mkdir(parents=True)
+    ipc=socket.socket(socket.AF_UNIX); ipc.bind(str(live/'.socket.sock'))
+    (live/'hyprland.lock').write_text('123\nwayland-1\n')
     for name in ['dri','input','udev']: (w/name).mkdir()
     (w/'udmabuf').touch(); seat=socket.socket(socket.AF_UNIX); seat.bind(str(w/'seatd.sock'))
-    env=dict(os.environ,HOME=str(home),PATH=str(mocks)+':'+os.environ['PATH'],TEST_STATE=str(w))
+    env=dict(os.environ,HOME=str(home),PATH=str(mocks)+':'+os.environ['PATH'],TEST_STATE=str(w),XDG_RUNTIME_DIR=str(runtime))
     env.pop('INVOCATION_ID',None); env.pop('OMARCHY_SESSION_INTERNAL',None)
     def script(name,body):
         p=mocks/name;p.write_text('#!/bin/bash\n'+body);p.chmod(0o755)
     for src in (root/'host/bin').iterdir():
         s=src.read_text()
         for key,value in {'@USER@':os.environ.get('USER','tester'),'@UID@':uid,'@ROOTFS@':str(fs),'@HOME@':str(home),'@CHOME@':'/home/tester','@HOME_BIND_DIRS@':'','@VERSION@':(root/'VERSION').read_text().strip()}.items(): s=s.replace(key,value)
-        for key,value in {'/run/user/'+uid:str(runtime),'/dev/dri':str(w/'dri'),'/dev/udmabuf':str(w/'udmabuf'),'/dev/input':str(w/'input'),'/run/udev':str(w/'udev'),'/run/seatd.sock':str(w/'seatd.sock')}.items(): s=s.replace(key,value)
+        for key,value in {'/run/user/'+uid:str(runtime),'/sys/class/drm':str(drm),'/dev/dri':str(w/'dri'),'/dev/udmabuf':str(w/'udmabuf'),'/dev/input':str(w/'input'),'/run/udev':str(w/'udev'),'/run/seatd.sock':str(w/'seatd.sock')}.items(): s=s.replace(key,value)
         # Accelerate only harness deadlines, not the production decision logic.
-        s=s.replace('$(monotonic_seconds) + 30','$(monotonic_seconds) + '+str(gate_seconds)).replace('$(monotonic_seconds) + 3','$(monotonic_seconds) + 2')
+        s=s.replace('$(monotonic_seconds) + 30','$(monotonic_seconds) + '+str(gate_seconds)).replace('$(monotonic_seconds) + 3','$(monotonic_seconds) + 2').replace('$(monotonic_seconds) + 15','$(monotonic_seconds) + '+str(gate_seconds))
         p=bins/src.name;p.write_text(s);p.chmod(0o755)
     script('sudo','[ "$1" != -n ] || shift\n[ ! -f "$TEST_STATE/sudo-fails" ] || exit 1\nexec env "$@"\n')
     script('date','[ ! -f "$TEST_STATE/wall-clock-jump" ] || [ "$1" != +%s ] || { echo 0; exit; }\nexec /bin/date "$@"\n')
     script('sleep','exec /bin/sleep .04\n')
-    script('systemctl','[ ! -f "$TEST_STATE/display-active" ] || { echo active; exit 0; }\necho inactive; exit 3\n')
-    script('fuser','[ -f "$TEST_STATE/seat-busy" ]\n')
+    script('systemctl', r'''echo "$*" >> "$TEST_STATE/systemctl"
+case "$*" in
+*'stop weston.socket'*) rm -f "$TEST_STATE/socket-active";;
+*'stop weston.service'*)
+ if [ -f "$TEST_STATE/socket-active" ]; then touch "$TEST_STATE/display-active"; else rm -f "$TEST_STATE/display-active"; fi;;
+*'restart weston.socket'*) touch "$TEST_STATE/socket-active";;
+*'restart weston.service'*) touch "$TEST_STATE/display-active";;
+*reset-failed*) exit 0;;
+*is-active*) [ ! -f "$TEST_STATE/display-active" ] || { echo active; exit 0; }; echo inactive; exit 3;;
+esac
+''')
+    script('fuser','if [[ $1 != -s ]]; then echo "$TEST_OWNER_PID"; exit; fi\n[ -f "$TEST_STATE/seat-busy" ]\n')
+    env['TEST_OWNER_PID']=str(os.getpid())
     script('machinectl',r'''
 case "$1" in
 list) if [ -f "$TEST_STATE/registry-transient" ]; then
@@ -51,6 +68,7 @@ kill|terminate)
 esac
 ''')
     script('systemd-nspawn',r'''
+[ ! -e /proc/$$/fd/8 ] || exit 98
 printf '%s\n' "$@" > "$TEST_STATE/nspawn-args"
 echo 'Window client launch stderr evidence' >&2
 [ ! -f "$TEST_STATE/registration-fails" ] || exit 17
@@ -68,14 +86,34 @@ if [ -f "$TEST_STATE/normal-exit" ]; then
 fi
 while :; do /bin/sleep .1; done
 ''')
-    # IPC predicate has its own real-script JSON matrix in display-regressions.sh.
-    (bins/'arch-output').write_text('''#!/bin/bash
-case "${1:-}" in --*) echo "probe $1"; exit 0;; esac
-[ -f "$TEST_STATE/machine" ] && [ -f "$TEST_STATE/ready" ] || exit 1
-touch "$TEST_STATE/probed"
-printf '[{"name":"Virtual-2","width":1024,"height":768,"dpmsStatus":true}]\\n'
+    # Run the REAL arch-output through the REAL gate; mock only external tools.
+    script('nsenter', r'''if [ -f "$TEST_STATE/watchdog-restart" ]; then
+ if [ ! -f "$TEST_STATE/watchdog-gap" ]; then
+   mv "$TEST_STATE/runtime/hypr/live" "$TEST_STATE/restarting"
+   touch "$TEST_STATE/watchdog-gap"
+ elif [ -d "$TEST_STATE/restarting" ]; then
+   mv "$TEST_STATE/restarting" "$TEST_STATE/runtime/hypr/live"
+ fi
+fi
+printf '%s\n' "$*" >> "$TEST_STATE/nsenter-args"
+case "$*" in *"-m -p -r -w --"*) ;; *) exit 91;; esac
+while [ "$1" != /bin/sh ]; do shift; done
+exec "$@"
+''')
+    script('stat', '[ "$1" != -c ] || [ "$2" != %u ] || { id -u; exit; }; exec /usr/bin/stat "$@"\n')
+    script('readlink', 'echo /usr/bin/Hyprland\n')
+    script('hyprctl', r'''echo "$*" >> "$TEST_STATE/hyprctl-args"
+case "$*" in
+'-j instances') echo '[{"pid":123,"instance":"live"}]';;
+'-i live -j monitors'*)
+ [ "$HYPRLAND_INSTANCE_SIGNATURE" = live ] || exit 92
+ [ -f "$TEST_STATE/machine" ] && [ -f "$TEST_STATE/ready" ] || exit 1
+ touch "$TEST_STATE/probed"
+ cat "$TEST_STATE/monitors";;
+*) exit 93;; esac
 ''')
     (bins/'arch-diag').write_text('''#!/bin/bash
+[ ! -e /proc/$$/fd/8 ] || exit 98
 [ "$1" = --stdout ] || exit 90
 touch "$TEST_STATE/diag-started"
 [ ! -f "$TEST_STATE/slow-diag" ] || /bin/sleep 1
@@ -83,7 +121,7 @@ echo 'Window client diagnostic evidence'
 echo '--- diagnostic snapshot complete ---'
 [ ! -f "$TEST_STATE/machine" ] || touch "$TEST_STATE/diag-before-kill"
 ''')
-    script('weston-test','echo fallback > "$TEST_STATE/weston"\n')
+    script('weston-test','if [[ ${LISTEN_FDS:-} == 1 ]]; then [[ $LISTEN_PID == $$ && -S /proc/self/fd/3 ]] || exit 98; fi\necho fallback > "$TEST_STATE/weston"\n')
     p=bins/'hypr-session'; p.write_text(p.read_text().replace('/usr/bin/weston',str(mocks/'weston-test')).replace('set -u\n', '''set -u
 # Test-only simulation of a wall clock repeatedly stepping backwards.
 if [[ -f $TEST_STATE/wall-clock-jump ]]; then
@@ -92,16 +130,23 @@ if [[ -f $TEST_STATE/wall-clock-jump ]]; then
 fi
 ''', 1))
     state=home/'.local/state/omarchy-alarm'
-    flags=['sudo-fails','display-active','seat-busy','registry-fails','unknown-leader','cleanup-fails','registration-fails','needs-kill','early-exit','no-output','normal-exit','wall-clock-jump','registry-transient','slow-diag']
+    flags=['sudo-fails','display-active','seat-busy','registry-fails','unknown-leader','cleanup-fails','registration-fails','needs-kill','early-exit','no-output','normal-exit','wall-clock-jump','registry-transient','slow-diag','socket-active','watchdog-restart','watchdog-gap']
     def reset(*enabled):
-        for name in flags+['machine','ready','probed','kills','weston','diag-before-kill','nspawn-args','diag-started']:(w/name).unlink(missing_ok=True)
+        for name in flags+['machine','ready','probed','kills','weston','diag-before-kill','nspawn-args','diag-started','systemctl','nsenter-args','hyprctl-args']:(w/name).unlink(missing_ok=True)
         for name in enabled:(w/name).touch()
-    def run(args=('--selftest',),stop=None):
+        (drm/'card0-Virtual-1/status').write_text('disconnected\n')
+        (drm/'card0-Virtual-2/status').write_text('connected\n')
+        (w/'monitors').write_text(json.dumps([dict(name='Virtual-2',width=1024,height=768,dpmsStatus=True)]))
+    def run(args=('--selftest',),stop=None,activation=False):
         old=set(state.glob('arch-session-*.log')) if state.exists() else set()
-        cmd=[str(bins/'arch-selftest')] if args==('--selftest',) else [str(bins/'hypr-session'),*args]
+        cmd=[str(bins/'arch-selftest')] if args==('wrapper',) else [str(bins/'hypr-session'),*args]
+        pass_fds=()
+        if activation:
+            cmd=['bash','-c','exec 3<&'+str(seat.fileno())+'; export LISTEN_PID=$$ LISTEN_FDS=1; exec "$@"','activation',*cmd]
+            pass_fds=(seat.fileno(),)
         def reset_signals():
             for sig in [signal.SIGHUP,signal.SIGINT,signal.SIGTERM]:signal.signal(sig,signal.SIG_DFL)
-        p=subprocess.Popen(cmd,env=env,stdout=subprocess.PIPE,stderr=subprocess.PIPE,start_new_session=True,preexec_fn=reset_signals)
+        p=subprocess.Popen(cmd,env=env,stdout=subprocess.PIPE,stderr=subprocess.PIPE,start_new_session=True,preexec_fn=reset_signals,pass_fds=pass_fds)
         try:
             if stop:
                 end=time.monotonic()+10
@@ -124,14 +169,67 @@ fi
     assert text.index('snapshot complete')<text.index('stage=cleanup-begin')
     assert not (w/'machine').exists() and not (w/'weston').exists()
     args=(w/'nspawn-args').read_text()
-    for value in ['--setenv=LIBGL_ALWAYS_SOFTWARE=1','--setenv=GALLIUM_DRIVER=llvmpipe','--setenv=AQ_NO_MODIFIERS=1','--setenv=AQ_NO_ATOMIC=0','--as-pid2']:
+    for value in ['--setenv=LIBSEAT_BACKEND=seatd','--as-pid2']:
         assert value in args,value
-    for knob in ['arch-hardware-rendering','arch-enable-modifiers','arch-no-atomic']:(home/'.config'/knob).touch()
+    for flag in ['LIBGL_ALWAYS_SOFTWARE','GALLIUM_DRIVER','AQ_NO_MODIFIERS','AQ_NO_ATOMIC','WAYLAND_DISPLAY']:
+        assert '--setenv='+flag not in args
+    # Reproduce the parent-display trap using a real listening UNIX socket.
+    # An unset selector reaches the idle activation socket; the actual nspawn
+    # environment must reject it before any Wayland roundtrip can block.
+    activation_socket=socket.socket(socket.AF_UNIX)
+    activation_socket.bind(str(runtime/'wayland-0')); activation_socket.listen(1)
     reset(); result=run(); assert result[0]==0,result
     args=(w/'nspawn-args').read_text()
-    for value in ['--setenv=LIBGL_ALWAYS_SOFTWARE=0','--setenv=AQ_NO_MODIFIERS=0','--setenv=AQ_NO_ATOMIC=1']:assert value in args
-    assert '--setenv=GALLIUM_DRIVER' not in args
-    for knob in ['arch-hardware-rendering','arch-enable-modifiers','arch-no-atomic']:(home/'.config'/knob).unlink()
+    assert args.index('--bind='+str(runtime)+'\n') < args.index('--bind-ro=/dev/null:'+str(runtime/'wayland-0'))
+    def parent_connect(display):
+        target=display if display is not None else 'wayland-0'
+        if not target.startswith('/'): target=str(runtime/target)
+        with socket.socket(socket.AF_UNIX) as client:
+            client.settimeout(.2)
+            try: client.connect(target); return True
+            except OSError: return False
+    assert parent_connect(None), 'fixture must accept an implicit wayland-0 connection'
+    assert not parent_connect('/dev/null'), 'private mask must reject a parent connection'
+    # Execute the emitted container entry shell with a hostile inherited FD
+    # selector, then observe the environment seen by the actual launcher.
+    entry=args.splitlines()[args.splitlines().index('-c')+1]
+    p=subprocess.run(['sh','-c',entry,'arch-launch','sh','-c','test -z "${WAYLAND_SOCKET+x}${WAYLAND_DISPLAY+x}"'],env=dict(env,WAYLAND_SOCKET='3',WAYLAND_DISPLAY='wayland-0'),capture_output=True)
+    assert p.returncode==0,p.stderr
+    activation_socket.close()
+    for knob in ['arch-software-rendering','arch-no-modifiers','arch-no-atomic']:(home/'.config'/knob).touch()
+    reset(); result=run(); assert result[0]==0,result
+    args=(w/'nspawn-args').read_text()
+    for value in ['--setenv=LIBGL_ALWAYS_SOFTWARE=1','--setenv=AQ_NO_MODIFIERS=1','--setenv=AQ_NO_ATOMIC=1']:assert value in args
+    assert '--setenv=GALLIUM_DRIVER=llvmpipe' in args
+    for knob in ['arch-software-rendering','arch-no-modifiers','arch-no-atomic']:(home/'.config'/knob).unlink()
+    # Provisioned Mesa and an explicitly selected build use their own libraries
+    # and matching watchdog, without modifying the packaged binaries.
+    mesa=fs/'opt/debian-mesa/lib'; mesa.mkdir(parents=True); (mesa/'libgbm.so.1').touch()
+    reset(); result=run(); assert result[0]==0,result
+    args=(w/'nspawn-args').read_text()
+    for value in ['LD_LIBRARY_PATH=/opt/debian-mesa/lib','GBM_BACKENDS_PATH=/opt/debian-mesa/lib/gbm','__EGL_VENDOR_LIBRARY_FILENAMES=/opt/debian-mesa/egl/50_debian_mesa.json']:
+        assert '--setenv='+value in args
+    prefix=fs/'opt/hyprland-test/bin'; prefix.mkdir(parents=True)
+    for name in ['Hyprland','start-hyprland']:
+        (prefix/name).write_text('#!/bin/sh\n'); (prefix/name).chmod(0o755)
+    (home/'.config/arch-hyprland-prefix').write_text('/opt/hyprland-test\n')
+    reset(); result=run(); assert result[0]==0,result
+    args=(w/'nspawn-args').read_text()
+    assert '/opt/hyprland-test/bin/start-hyprland\n--path\n/opt/hyprland-test/bin/Hyprland' in args
+    assert '--setenv=LD_LIBRARY_PATH=/opt/hyprland-test/lib:/opt/debian-mesa/lib' in args
+    (home/'.config/arch-use-arch-mesa').touch()
+    reset(); result=run(); assert result[0]==0,result
+    args=(w/'nspawn-args').read_text()
+    assert 'GBM_BACKENDS_PATH=' not in args and '--setenv=LD_LIBRARY_PATH=/opt/hyprland-test/lib\n' in args
+    (home/'.config/arch-hyprland-prefix').unlink(); (home/'.config/arch-use-arch-mesa').unlink()
+    # A failed first compositor leaves only its event socket; the watchdog
+    # creates a new live instance on the following gate attempt.
+    abandoned=runtime/'hypr/abandoned'; abandoned.mkdir()
+    old_event=socket.socket(socket.AF_UNIX); old_event.bind(str(abandoned/'.socket2.sock'))
+    reset('watchdog-restart'); result=run(); assert result[0]==0,result
+    assert 'ipc-wait:' in result[3] and 'stage=output-ready' in result[3]
+    assert '-i abandoned' not in (w/'hyprctl-args').read_text()
+    old_event.close()
     for flag,token in [('sudo-fails','sudo-needs-password'),('registration-fails','registration-failed'),('early-exit','stage=start-hyprland'),('no-output','gate-timeout')]:
         reset(flag); rc,out,err,text,logs=run()
         assert rc!=0 and token in text,(flag,rc,err,text)
@@ -145,7 +243,13 @@ fi
     import fcntl
     with (runtime/'omarchy-alarm-session.lock').open('w') as held:
         fcntl.flock(held,fcntl.LOCK_EX | fcntl.LOCK_NB)
-        reset(); rc,_,err,_,logs=run(); assert rc==2 and 'session-busy' in err and not logs
+        reset(); rc,_,err,_,logs=run(); assert rc==2 and 'session-busy' in err and not logs and 'pid='+str(os.getpid()) in err and 'cmdline=' in err
+    lock=runtime/'omarchy-alarm-session.lock'
+    inode=lock.stat().st_ino
+    dead=subprocess.Popen(['/bin/true']); dead.wait()
+    lock.write_text(str(dead.pid)+'\n')
+    reset(); rc,_,err,_,_=run()
+    assert rc==0 and 'session-stale' in err and lock.stat().st_ino==inode,(rc,err)
     for flag in ['display-active','seat-busy','registry-fails']:
         reset(flag); rc,_,_,_,logs=run(); assert rc==2 and not logs,(flag,rc)
     reset('unknown-leader'); (w/'machine').write_text('999999')
@@ -161,6 +265,8 @@ fi
     assert rc==0 and 'SIGKILL' in (w/'kills').read_text() and not (w/'machine').exists(),text
     reset('registration-fails'); rc,_,_,text,_=run(args=())
     assert rc==0 and (w/'weston').exists() and 'stage=fallback-Weston' in text,text
+    reset('registration-fails'); rc,_,err,text,_=run(args=(),activation=True)
+    assert rc==0 and (w/'weston').exists(),(rc,err,text)
     reset('registration-fails','slow-diag'); rc,_,_,text,_=run(args=(),stop=signal.SIGTERM)
     assert rc==143 and not (w/'weston').exists() and not (w/'machine').exists(),(rc,text)
     reset('no-output','cleanup-fails'); rc,_,_,text,_=run(args=())
@@ -182,6 +288,33 @@ fi
     assert not (w/'weston').exists()
     reset(); (w/'registry-transient').write_text('0')
     rc,_,err,_,logs=run(args=()); assert rc==0 and (w/'weston').exists(),(rc,err)
+    (home/'.config/hypr-session-mode').write_text('arch\n')
+    # One installed gate, two simulated boots with the connected output flipped.
+    for connector in ['Virtual-2','Virtual-1']:
+        reset('socket-active','display-active')
+        for name in ['Virtual-1','Virtual-2']:
+            (drm/('card0-'+name)/'status').write_text(('connected' if name==connector else 'disconnected')+'\n')
+        (w/'monitors').write_text(json.dumps([dict(name=connector,width=1280,height=720,dpmsStatus=True)]))
+        rc,out,err,text,logs=run(args=('wrapper',))
+        assert rc==0 and 'stage=selftest-ready' in text,(rc,err,text)
+        calls=(w/'systemctl').read_text().splitlines()
+        assert calls[0:2]==['--user stop weston.socket','--user stop weston.service'],calls
+        assert calls[-2:]==['--user restart weston.socket','--user restart weston.service'],calls
+        assert (w/'socket-active').exists() and (w/'display-active').exists()
+        assert connector in (w/'nsenter-args').read_text()
+        other='Virtual-1' if connector=='Virtual-2' else 'Virtual-2'
+        assert other not in (w/'nsenter-args').read_text()
+        assert 'Virtual-' not in (w/'hyprctl-args').read_text()
+    for flag in ['registration-fails','no-output','seat-busy']:
+        reset(flag,'socket-active','display-active')
+        rc,_,err,text,_=run(args=('wrapper',))
+        assert rc!=0 and (w/'socket-active').exists() and (w/'display-active').exists(),(flag,rc,err,text)
+    for sig,code in [(signal.SIGTERM,143),(signal.SIGHUP,129),(signal.SIGINT,130),(signal.SIGUSR1,124)]:
+        reset('socket-active','display-active')
+        rc,_,err,text,_=run(args=('wrapper',),stop=sig)
+        assert rc==code and not (w/'machine').exists(),(sig,rc,err,text)
+        assert (w/'socket-active').exists() and (w/'display-active').exists()
+    ipc.close()
     seat.close()
 print('PASS session: foreground evidence, preflights, ownership, signals, kill escalation, fallback, renderer knobs')
 PY

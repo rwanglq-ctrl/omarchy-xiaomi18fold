@@ -1,5 +1,49 @@
 # Changelog
 
+## 0.2.6 — 2026-10-14
+
+- Make `arch-selftest` stop weston.socket before weston.service, wait for the
+  session lock/seat, report live owners, clear dead PID metadata under flock,
+  and restore both display units after success, failure or handled signals.
+- Preserve systemd's activation socket across session logging and Weston
+  fallback; close the session lock in the logger and container launcher.
+- Probe in the container's explicit mount/PID namespace, root and working
+  directory as the configured UID. Verify the command socket and live process,
+  pass the instance signature explicitly, and fall back to socket/lock discovery
+  when `hyprctl instances` fails. Record bounded probe progress.
+- Capture runtime mount/permissions, sockets and real Hyprland logs inside the
+  container before other diagnostics and teardown. Preserve host log retrieval
+  when the container has already exited or namespace entry fails.
+- Prevent direct DRM startup from connecting to the idle weston.socket as a
+  parent Wayland compositor. A VM backtrace confirmed the startup roundtrip
+  blocked before Hyprland created its command socket. Client environments use
+  Hyprland's own socket after startup.
+- Test the real gate and selftest with connected outputs flipping Virtual-2 to
+  Virtual-1, discovery failures, activation races, stale/live locks, restoration
+  and signals, including a watchdog restart gap and an abandoned event socket.
+- Align with newly collected same-Pad gold evidence: stage Debian 13 Mesa/LLVM
+  from apt-installed files with package/source versions and SHA256 provenance;
+  preserve Arch packages and allow opt-out. Debian 13 arm64 is the supported
+  host; the new dependency set does not support Debian 12. Use driver autodetection without
+  forced AQ/LIBGL defaults. Clear parent Wayland variables and privately mask
+  the idle host wayland-0 socket, preserving host fallback activation.
+- Select the matching watchdog, libraries and probe client for an explicit
+  custom prefix. Default remains distro Hyprland; the reference's custom 0.55
+  dependency/build provenance is incomplete, so no unknown binaries are shipped.
+  Physical Pad validation remains outstanding; arm64 VM startup/selftest pass
+  with distro 0.56.2 plus Debian Mesa 25.0.7.
+- CN continues to clone Gitee; only origin is pushed by this release task.
+- Provenance: Codex **gpt-6-astra** implementation and validation; pi
+  **xiaomi/mimo-v2.6-pro-ultraspeed** analysis and review in
+  `/tmp/mimo-logs/v026-analysis.log`, `/tmp/mimo-logs/v026-pad-analysis.log`,
+  `/tmp/mimo-logs/v026-ipc-analysis.log`,
+  `/tmp/mimo-logs/v026-reference-diff.log`, `/tmp/mimo-logs/v026-review.log`,
+  `/tmp/mimo-logs/v026-review-followup.log`, `v026-gold-diff.log`,
+  `v026-gold-review.log`, `v026-gold-final-review.log`; independent Claude **claude-opus-5-5** review
+  in `/tmp/mimo-logs/v026-claude-review.log` and
+  `/tmp/mimo-logs/v026-claude-followup.log` and `v026-claude-review-3.log`. Local raw logs are not bundled.
+
+
 ## 0.2.5 — 2026-10-14
 
 - Initialize a stable container machine ID before nonboot nspawn startup. The

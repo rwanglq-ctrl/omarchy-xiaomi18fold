@@ -1,4 +1,59 @@
-#!/bin/sh
-# Installed by omarchy-alarm-nspawn. Foreground attempt; never starts Weston.
-[ "$#" = 0 ] || { echo 'usage: arch-selftest' >&2; exit 2; }
-exec timeout --foreground --signal=USR1 --kill-after=60 90 "$HOME/.local/bin/hypr-session" --selftest
+#!/bin/bash
+# Installed by omarchy-alarm-nspawn. Run from Linux Terminal's text tab.
+set -u
+[[ $# == 0 ]] || { echo 'usage: arch-selftest' >&2; exit 2; }
+runtime=/run/user/@UID@
+[[ -d $runtime && -O $runtime ]] || { echo 'runtime-invalid' >&2; exit 2; }
+# Serialize the entire stop/test/restore transaction, including its cleanup.
+exec 9>>"$runtime/omarchy-alarm-selftest.lock" || exit 2
+flock -n 9 || { echo 'selftest-busy: another arch-selftest is stopping/testing/restoring the display' >&2; exit 2; }
+child=''; restore=0; signal_rc=0
+ctl() { timeout --kill-after=2 70 systemctl --user "$@"; }
+on_signal() {
+  signal_rc=$1
+  [[ -z $child ]] || kill -s "$2" "$child" 2>/dev/null || :
+}
+restore_display() {
+  local rc=$?
+  trap - EXIT
+  # Further signals must not skip restoration, or kill an already-reaped PID.
+  child=''
+  if (( restore )); then
+    echo 'selftest: restoring weston.socket and weston.service' >&2
+    # A failed service may be start-limited following the original black screen.
+    ctl reset-failed weston.service >/dev/null 2>&1 || :
+    if ! ctl restart weston.socket >&2; then
+      echo 'restore-failed: weston.socket; retry: systemctl --user restart weston.socket weston.service' >&2
+      (( rc != 0 )) || rc=1
+    fi
+    if ! ctl restart weston.service >&2; then
+      echo 'restore-failed: weston.service; retry: systemctl --user restart weston.socket weston.service' >&2
+      (( rc != 0 )) || rc=1
+    fi
+  fi
+  (( signal_rc == 0 )) || rc=$signal_rc
+  exit "$rc"
+}
+trap restore_display EXIT
+trap 'on_signal 129 HUP' HUP
+trap 'on_signal 130 INT' INT
+trap 'on_signal 143 TERM' TERM
+trap 'on_signal 124 USR1' USR1
+restore=1
+# Disable activation FIRST. Stopping only the service allows an immediate restart.
+echo 'selftest: closing the display (socket, then service); it will be restored on exit' >&2
+ctl stop weston.socket >&2 || { echo 'stop-failed: weston.socket' >&2; exit 2; }
+(( signal_rc == 0 )) || exit "$signal_rc"
+ctl stop weston.service >&2 || { echo 'stop-failed: weston.service' >&2; exit 2; }
+(( signal_rc == 0 )) || exit "$signal_rc"
+# hypr-session owns the bounded lock/seat wait and rechecks under its lock.
+timeout --foreground --signal=USR1 --kill-after=60 90 "$HOME/.local/bin/hypr-session" --selftest 9>&- &
+child=$!
+# wait can be interrupted by a trapped signal; reap before restoring the display.
+# Retry an interrupted wait without consulting a possibly recycled PID.
+while :; do
+  wait "$child"; rc=$?
+  [[ $(jobs -pr) == "$child" ]] || break
+done
+child=''
+exit "$rc"

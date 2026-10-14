@@ -27,7 +27,7 @@ ALARM_KEY=${ALARM_KEY// /}
 CACHE_DIR=${OMARCHY_ALARM_CACHE:-/var/cache/omarchy-alarm-nspawn}
 DEFAULT_HOME_BINDS="Downloads Pictures Videos Work"
 LAUNCHERS=(arch-hyprland archbox archsh hypr-switch hypr-session arch-output arch-diag arch-selftest arch-machine-id arch-log)
-APT_PACKAGES=(systemd-container seatd curl ca-certificates libarchive-tools sudo git gnupg kmod util-linux psmisc weston python3)
+APT_PACKAGES=(systemd-container seatd curl ca-certificates libarchive-tools sudo git gnupg kmod util-linux psmisc weston python3 libegl-mesa0 libgbm1 libgl1-mesa-dri libllvm19 libedit2 libxml2 libz3-4)
 MACHINE=arch-desktop
 
 DRY_RUN=0
@@ -493,6 +493,10 @@ if (( DRY_RUN )); then
 else
   "${nspawn_setup[@]}" </dev/null
 fi
+
+# Stage the host Mesa stack after Arch dependencies exist. No network URLs or
+# binary blobs are added; apt mirror selection remains the existing host policy.
+run python3 "$SCRIPT_DIR/../lib/debian-mesa.py" "$ROOTFS"
 
 # --- 6. launchers ----------------------------------------------------------------------
 # install_user_file SRC DST MODE: install as the target user; keep a copy of a file that

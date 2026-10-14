@@ -3,9 +3,8 @@
 # Run the Arch container's Hyprland directly on the display; seatd hands it DRM/input fds.
 # SYSTEMD_NSPAWN_LOCK=0 lets archbox shells share the same rootfs concurrently.
 # /tmp is shared so Debian X11 apps started via host-run find this XWayland.
-# The Android virtio_gpu scanout defaults to software rendering (llvmpipe). Optional hook: a copy of Debian's Mesa in
-# /opt/debian-mesa (container path) composites faster than ALARM's Mesa on some CPUs; it is
-# used when present. `touch ~/.config/arch-use-arch-mesa` to opt out. No-op when absent.
+# Debian Mesa is staged by host/install.sh to match the working Pad reference.
+# `touch ~/.config/arch-use-arch-mesa` opts out for comparison.
 # Direct invocations use the same owner, evidence and cleanup as the service.
 if [[ ${OMARCHY_SESSION_INTERNAL:-} != 1 ]]; then
   exec "$HOME/.local/bin/hypr-session" --direct "$@"
@@ -19,20 +18,18 @@ for path in /dev/dri /dev/udmabuf /dev/input /run/udev /run/seatd.sock /run/user
 done
 [[ -S /run/seatd.sock ]] || { stage seat-invalid 'not a socket'; exit 1; }
 sudo -n bash "$HOME/.local/bin/arch-machine-id" "$rootfs" || { stage machine-id-invalid; exit 1; }
-sudo -n test -x "$rootfs/usr/bin/start-hyprland" || { stage start-hyprland-missing; exit 1; }
 stage preflight-ok
-# Read only fixed knobs, never source a user file in a privileged launch.
-software=1; modifiers=1; atomic=0
-[ -e "$HOME/.config/arch-hardware-rendering" ] && software=0
-[ -e "$HOME/.config/arch-enable-modifiers" ] && modifiers=0
-[ -e "$HOME/.config/arch-no-atomic" ] && atomic=1
+# Gold reference uses driver autodetection and no AQ/LIBGL overrides. Keep
+# explicit troubleshooting knobs, but do not force them on every launch.
 renderer=""
-[ "$software" = 1 ] && renderer="--setenv=GALLIUM_DRIVER=llvmpipe"
-echo "arch-hyprland: software=$software no_modifiers=$modifiers no_atomic=$atomic" >&2
+[ ! -e "$HOME/.config/arch-software-rendering" ] || renderer="--setenv=LIBGL_ALWAYS_SOFTWARE=1 --setenv=GALLIUM_DRIVER=llvmpipe"
+[ ! -e "$HOME/.config/arch-no-modifiers" ] || renderer="$renderer --setenv=AQ_NO_MODIFIERS=1"
+[ ! -e "$HOME/.config/arch-no-atomic" ] || renderer="$renderer --setenv=AQ_NO_ATOMIC=1"
 mesa=""
+libpath=""
 if [ ! -e "$HOME/.config/arch-use-arch-mesa" ] && sudo -n test -e "$rootfs/opt/debian-mesa/lib/libgbm.so.1"; then
-  mesa="--setenv=LD_LIBRARY_PATH=/opt/debian-mesa/lib
-    --setenv=GBM_BACKENDS_PATH=/opt/debian-mesa/lib/gbm
+  libpath=/opt/debian-mesa/lib
+  mesa="--setenv=GBM_BACKENDS_PATH=/opt/debian-mesa/lib/gbm
     --setenv=__EGL_VENDOR_LIBRARY_FILENAMES=/opt/debian-mesa/egl/50_debian_mesa.json"
 fi
 # Optional alternate Hyprland build: put its install prefix (container path, e.g.
@@ -44,9 +41,13 @@ case "$prefix" in
   *) prefix="" ;;
 esac
 if [ -n "$prefix" ] && sudo -n test -x "$rootfs$prefix/bin/Hyprland"; then
-  launch="/usr/bin/start-hyprland --path $prefix/bin/Hyprland"
+  sudo -n test -x "$rootfs$prefix/bin/start-hyprland" || { stage prefix-watchdog-missing "$prefix"; exit 1; }
+  launch="$prefix/bin/start-hyprland --path $prefix/bin/Hyprland"
+  libpath="$prefix/lib${libpath:+:$libpath}"
   mesa="$mesa --setenv=PATH=$prefix/bin:/usr/local/sbin:/usr/local/bin:/usr/bin"
 fi
+[ -z "$libpath" ] || mesa="$mesa --setenv=LD_LIBRARY_PATH=$libpath"
+sudo -n test -x "$rootfs${launch%% *}" || { stage start-hyprland-missing; exit 1; }
 # Host home folders shared with the container (same files on both sides; the UID matches).
 # Only folders that exist on the host are bound. Empty list = --no-home-binds.
 homebinds=""
@@ -60,6 +61,13 @@ fi
 stage nspawn-start
 # /dev/udmabuf: llvmpipe needs it for dmabuf export and EGL_ANDROID_native_fence_sync.
 # Without it Hyprland loses explicit sync and the display shows torn/fragmented frames.
+# Gold has no parent display and an unused Weston socket. Our host socket stays
+# active for fallback, so hide only wayland-0 inside this container's mount
+# namespace. With no WAYLAND_DISPLAY, the optional backend then fails promptly.
+parent_mask=""
+if [[ -e /run/user/@UID@/wayland-0 ]]; then
+  parent_mask="--bind-ro=/dev/null:/run/user/@UID@/wayland-0"
+fi
 # $mesa, $homebinds and $launch are intentionally unquoted so they split into separate words.
 # shellcheck disable=SC2086
 exec sudo -n SYSTEMD_NSPAWN_LOCK=0 systemd-nspawn -q -D "$rootfs" -M arch-desktop \
@@ -67,13 +75,12 @@ exec sudo -n SYSTEMD_NSPAWN_LOCK=0 systemd-nspawn -q -D "$rootfs" -M arch-deskto
   -u '@USER@' --chdir='@CHOME@' \
   --bind=/dev/dri --bind=/dev/udmabuf --bind=/dev/input --bind-ro=/run/udev --bind=/run/seatd.sock \
   --bind=/run/user/@UID@ --bind=/tmp \
-  $homebinds \
+  $homebinds $parent_mask \
   --property=DeviceAllow='char-drm rw' --property=DeviceAllow='char-input rw' --property=DeviceAllow='/dev/udmabuf rw' \
   --setenv=HOME='@CHOME@' --setenv=USER='@USER@' --setenv=LOGNAME='@USER@' \
   --setenv=XDG_RUNTIME_DIR=/run/user/@UID@ \
   --setenv=DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/@UID@/bus \
   --setenv=XDG_SESSION_TYPE=wayland --setenv=XDG_CURRENT_DESKTOP=Hyprland \
   --setenv=XDG_SESSION_DESKTOP=Hyprland --setenv=LIBSEAT_BACKEND=seatd \
-  --setenv=LIBGL_ALWAYS_SOFTWARE="$software" --setenv=AQ_NO_MODIFIERS="$modifiers" \
-  --setenv=AQ_NO_ATOMIC="$atomic" --setenv=LANG=en_US.UTF-8 $renderer $mesa \
-  /bin/sh -c 'echo "stage=container-entry"; id; test -w "$XDG_RUNTIME_DIR" || { echo "stage=runtime-not-writable" >&2; exit 1; }; echo "stage=start-hyprland"; exec "$@"' arch-launch $launch "$@"
+  --setenv=LANG=en_US.UTF-8 $renderer $mesa \
+  /bin/sh -c 'unset WAYLAND_DISPLAY WAYLAND_SOCKET; echo "stage=container-entry"; id; test -w "$XDG_RUNTIME_DIR" || { echo "stage=runtime-not-writable" >&2; exit 1; }; echo "stage=start-hyprland"; exec "$@"' arch-launch $launch "$@"

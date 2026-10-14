@@ -64,7 +64,7 @@ curl -fsSL https://raw.githubusercontent.com/rwanglq-ctrl/omarchy-xiaomipad9pm/m
 
 ### 国内网络安装
 
-发布版本：`0.2.5`。每次发布先推送 GitHub，再由维护者同步 Gitee 的 `main` 和版本标签。以下命令使用 Gitee 源码和国内软件包镜像，无需访问 GitHub；请核对安装器打印的源码 SHA。
+发布版本：`0.2.6`。每次发布先推送 GitHub，再由维护者同步 Gitee 的 `main` 和版本标签。以下命令使用 Gitee 源码和国内软件包镜像，无需访问 GitHub；请核对安装器打印的源码 SHA。
 
 ```bash
 curl -fsSL https://gitee.com/zenbardofsuhe/omarchy-xiaomipad9pm/raw/main/install.sh | MIRROR=cn OMARCHY_ALARM_REPO=https://gitee.com/zenbardofsuhe/omarchy-xiaomipad9pm OMARCHY_ALARM_REF=main bash -s -- --profile core
@@ -140,7 +140,7 @@ hypr-switch arch
 hypr-switch debian
 ```
 
-### v0.2.5 启动诊断 / Safe Pad update
+### v0.2.6 启动诊断 / Safe Pad update
 
 在 **Debian 宿主**的普通终端运行上面的 `main` 国内 Resume 命令。
 无需删除容器或 rootfs 缓存；已有配置会由安装器更新。安装器不会重启显示服务。
@@ -161,26 +161,47 @@ Debian 文本终端运行 `~/.local/bin/arch-diag`，然后 `~/.local/bin/hypr-s
 日志不再过滤 `Window` 行，可能含窗口标题、工作区名称和设备标识；目录 0700、文件 0600，分享前请检查。
 `arch-output` 只查询运行中的 arch-desktop，成功时输出监视器 JSON；失败返回非零。
 
-默认在 nspawn 启动前设置 `LIBGL_ALWAYS_SOFTWARE=1`、`GALLIUM_DRIVER=llvmpipe`、
-`AQ_NO_MODIFIERS=1`，Lua 使用通用 preferred,auto,1 显示规则并关闭硬件光标。
+v0.2.6 按同一 Pad 的工作参考安装 Debian 13 宿主 Mesa 到容器 `/opt/debian-mesa`，
+保留 pacman 的 Mesa。`manifest.json` 记录包版本、源码版本和文件 SHA256。
+默认由 Mesa/DRM 自动选择驱动，不再强制 `LIBGL_ALWAYS_SOFTWARE`、`GALLIUM_DRIVER` 或 `AQ_*`；
+参考设备仍使用 llvmpipe。Lua 使用通用 preferred,auto,1 显示规则并关闭硬件光标。
+启动时清除 `WAYLAND_DISPLAY`/`WAYLAND_SOCKET`，并仅在容器内屏蔽宿主的空闲 wayland-0 监听 socket。
 以下文件在宿主的 `~/.config/` 中生效，修改后需重新打开显示：
 
-- `touch ~/.config/arch-no-atomic`：可选的 legacy DRM 诊断尝试；默认保留 atomic，
-  上游不推荐 legacy，未证明它能修复本设备。撤销：`rm ~/.config/arch-no-atomic`。
-- `arch-hardware-rendering`：存在时关闭强制软件渲染，仅供确认有硬件加速的环境。
-- `arch-enable-modifiers`：存在时重新启用 DRM modifiers。
-- `arch-use-arch-mesa`：存在时跳过可选 Debian Mesa；未安装 `/opt/debian-mesa` 无需处理。
+- `arch-no-atomic`：可选 legacy DRM 诊断；默认保留 atomic。
+- `arch-software-rendering`：显式强制 llvmpipe 软件渲染。
+- `arch-no-modifiers`：显式禁用 DRM modifiers。
+- `arch-use-arch-mesa`：跳过 Debian Mesa，使用 Arch Mesa 做对照测试。
+- `arch-hyprland-prefix`：内容为已有可信构建的绝对安装前缀；使用其中的 Hyprland、start-hyprland、hyprctl 和库。
+  不会自动下载或复制参考设备的未知二进制。默认仍为发行版 Hyprland。
+
+创建开关用 `touch ~/.config/文件名`，撤销用 `rm ~/.config/文件名`。
+旧 `arch-hardware-rendering` / `arch-enable-modifiers` 已无作用（现在默认自动选择）。
+工作参考的自定义 Hyprland 0.55 尚无完整构建来源；版本差异、构建方案及验证限制见
+[v0.2.6 validation](docs/v0.2.6-validation.md)。
 
 v0.2.4 修复已确认的连接器假设：一次 Pad Weston 诊断中 Virtual-2 已连接、Virtual-1 未连接（编号可能变化）；
 启动 gate 接受任何可用输出，arch-output 自动读取 card0 的 connected 状态。
 回退前保存 monitors all、Arch Hyprland 日志尾部和 DRM status。单显示器触屏使用默认自动映射。
-v0.2.5 在 Debian arm64 + nspawn + virtio-gpu / llvmpipe 的独立 VM 中验证；
-Pad 原来的自动回退尚未复现，不能据此宣称 Pad 根因已确定。详见 [v0.2.5 evidence](docs/v0.2.5-validation.md)。
+v0.2.6 在独立 arm64 VM 中复现并修复空闲 Weston socket 引起的启动阻塞，
+并验证 Debian Mesa 启动、IPC、自检及显示恢复。实体 Pad 的新版本仍待验证，详见
+[v0.2.6 evidence](docs/v0.2.6-validation.md)。
 
-一次性自检：在独立的 Debian 文本终端或 SSH 中、关闭图形显示服务后运行 `~/.local/bin/arch-selftest`。
-如果需要停止服务，只能从该独立连接运行 `systemctl --user stop weston.service`，它会关闭当前图形应用。
-自检拒绝已有容器或占用中的显示，前台运行一次启动链，不自动切换 Weston，完成后打印唯一日志路径；
-退出 0 表示输出 IPC 就绪且已清理，不等于可见像素已通过验证。失败时分享该日志，勿只拍最后几行。
+一次性自检：在 Linux Terminal 的**文本标签页**（或独立 SSH）运行：
+
+```bash
+~/.local/bin/arch-selftest
+```
+
+命令会关闭显示及当前图形应用：先停止 weston.socket，再停止 weston.service，
+有界等待会话锁和 DRM seat 释放；完成、失败或收到可处理信号后重启 socket/service，恢复所选桌面。
+无需预先手动停止服务。仍有其他活跃拥有者时会报告 PID/命令并拒绝竞争，不删除内核锁文件。
+自检完成后打印私有日志路径；退出 0 表示输出 IPC 就绪且已清理，不等于可见像素已通过验证。
+失败时分享该日志，勿只拍最后几行。v0.2.6 优先在容器挂载命名空间内保存真实 Hyprland 日志、socket 权限和挂载信息，
+并记录显式 instance signature 的探测进度。详见 [v0.2.6 evidence](docs/v0.2.6-validation.md)。
+VM 已复现启动阻塞：Aquamarine 把仍监听的 weston.socket 当成父 Wayland compositor，
+等待无人响应的握手，因而未建立 Hyprland 命令 socket。v0.2.6 的直接 DRM 启动禁用这个父连接；
+Hyprland 启动后仍为客户端设置自己的显示 socket。实体 Pad 和已知正常安装的对照验证尚待完成。
 
 根因证据和复现范围见 [display investigation](docs/blackscreen-v0.2.3.md)。
 
@@ -200,7 +221,7 @@ Pad 原来的自动回退尚未复现，不能据此宣称 Pad 根因已确定�
 
 ```bash
 # 停止并删除容器（桌面运行时注册的机器名是 arch-desktop）
-systemctl --user stop weston.service
+systemctl --user stop weston.socket weston.service
 sudo machinectl terminate arch-desktop 2>/dev/null || true
 sudo rm -rf /var/lib/machines/arch
 
@@ -303,9 +324,10 @@ cd omarchy-xiaomipad9pm
 
 ### Tests
 
-v0.2.5 passes a real Debian arm64 VM desktop test with nspawn, llvmpipe and the
-second DRM connector. The Pad’s original automatic fallback was not reproduced,
-and its exact cause remains undiagnosed. See [validation evidence and limits](docs/v0.2.5-validation.md).
+v0.2.6 reproduces and fixes a startup deadlock against an idle Weston activation
+socket in a Debian arm64 VM. The aligned Debian Mesa stack passes startup, monitor
+IPC, shell IPC and selftest/restoration there. Physical Pad confirmation remains
+outstanding. See [validation evidence and limits](docs/v0.2.6-validation.md).
 
 `tests/run.sh --quick` (syntax, ShellCheck, privacy scan, patches, package names, dry-runs, Lua, hygiene)
 runs on every push; `tests/run.sh --full` installs the `core` profile into a fresh Arch Linux ARM rootfs

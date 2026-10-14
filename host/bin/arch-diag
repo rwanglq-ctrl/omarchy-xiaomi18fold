@@ -17,10 +17,15 @@ echo 'omarchy-alarm-nspawn v@VERSION@ display diagnostics (private, unfiltered)'
 date -u
 uname -srmo
 printf 'selected mode: '; cat "$HOME/.config/hypr-session-mode" 2>/dev/null || :
+echo '--- Hyprland namespace logs and sockets (before all other probes) ---'
+"$HOME/.local/bin/arch-output" --logs 2>&1 || echo 'namespace log probe failed'
 echo '--- machine identity (values withheld) ---'
 bounded sudo -n bash "$HOME/.local/bin/arch-machine-id" --check '@ROOTFS@'
-echo '--- display service ---'
+echo '--- display socket and service ---'
+bounded systemctl --user show weston.socket -p ActiveState -p SubState -p Triggers -p Listen
 bounded systemctl --user show weston.service -p ActiveState -p SubState -p MainPID -p ExecMainStatus -p Result -p ExecMainStartTimestamp -p NRestarts
+echo '--- session lock / DRM users (PID and command) ---'
+bounded sudo -n fuser -v /run/user/@UID@/omarchy-alarm-session.lock /dev/dri/card*
 echo '--- DRM / seat / udmabuf ---'
 ls -l /dev/dri /dev/udmabuf /run/seatd.sock /run/user/@UID@ 2>&1 || :
 for f in /sys/class/drm/card*-*/status; do
@@ -30,7 +35,7 @@ done
 echo '--- desktop machine ---'
 bounded machinectl show arch-desktop -p Leader -p State -p RootDirectory -p Timestamp
 echo '--- launcher knobs ---'
-for knob in arch-hardware-rendering arch-enable-modifiers arch-no-atomic arch-use-arch-mesa; do
+for knob in arch-software-rendering arch-no-modifiers arch-no-atomic arch-use-arch-mesa arch-hyprland-prefix; do
   [[ ! -e $HOME/.config/$knob ]] || printf '%s enabled\n' "$knob"
 done
 echo '--- connected DRM connectors ---'
@@ -39,8 +44,6 @@ echo '--- raw Hyprland instances (including invalid/empty responses) ---'
 "$HOME/.local/bin/arch-output" --instances 2>&1 || echo 'No instance report / namespace probe failed'
 echo '--- Hyprland monitors all ---'
 "$HOME/.local/bin/arch-output" --all 2>&1 || echo 'No monitor report / probe failed'
-echo '--- Hyprland log (shared runtime, available after teardown) ---'
-"$HOME/.local/bin/arch-output" --logs 2>&1 || echo 'log probe failed'
 echo '--- container packages / user ---'
 "$HOME/.local/bin/arch-output" --info 2>&1 || echo 'container unavailable'
 echo '--- Omarchy shell log (persistent container file) ---'
@@ -54,7 +57,7 @@ while IFS= read -r entry; do
   tail -c 131072 "$file"
 done < <(find "$state" -maxdepth 1 -type f -name 'arch-session-*.log' -printf '%T@ %p\n' 2>/dev/null | sort -rn | head -4)
 echo '--- display journal (this boot, last 128KiB; full launch stream above) ---'
-bounded journalctl --user -b -u weston.service --no-pager -o short-monotonic | tail -c 131072
+bounded journalctl --user -b -u weston.service -u weston.socket --no-pager -o short-monotonic | tail -c 131072
 echo '--- machine/nspawn system journal (this boot, last 128KiB) ---'
 bounded sudo -n journalctl -b --no-pager -o short-monotonic -u systemd-machined.service -u machine-arch\\x2ddesktop.scope | tail -c 131072
 echo '--- machine journal (may be unavailable in a non-boot container) ---'

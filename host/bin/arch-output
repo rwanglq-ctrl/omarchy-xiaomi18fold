@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 # Installed by omarchy-alarm-nspawn (host/install.sh); @PLACEHOLDERS@ filled at install.
 # Query only the already-running desktop; never start archbox or another compositor.
 # --logs: compositor log; --info: packages; --all: raw monitors all (private); --summary: fields without names
@@ -28,13 +28,49 @@ if [ "$mode" = --connected ]; then
   printf '%s\n' "$connected"
   exit 0
 fi
-# Runtime is shared; log collection must not depend on a registered machine.
-if [ "$mode" = --logs ]; then
+leader=$(timeout --kill-after=1 2 machinectl show arch-desktop -p Leader --value 2>/dev/null) || leader=''
+prefix=$(cat "$HOME/.config/arch-hyprland-prefix" 2>/dev/null)
+case "$prefix" in
+  /*) case "$prefix" in *[!A-Za-z0-9/._-]*) prefix='' ;; esac ;;
+  *) prefix='' ;;
+esac
+runner=(/bin/sh)
+case "$leader" in ''|*[!0-9]*) leader=0 ;; esac
+if (( leader > 1 )) && [[ $leader != "$excluded" ]]; then
+  # setns(mount) alone does not adopt the target root/cwd. Use the guest /proc
+  # and binaries as well as its mount namespace; run the probe as its user.
+  runner=(sudo -n nsenter -t "$leader" -m -p -r -w --
+    runuser -u '@USER@' -- env XDG_RUNTIME_DIR=/run/user/@UID@ /bin/sh)
+elif [[ $mode != --logs ]]; then
+  echo 'ipc-wait: desktop leader unavailable or excluded' >&2
+  exit 1
+else
+  echo 'desktop unavailable: inspecting surviving host runtime logs'
+fi
+# Discovery plus four probes can each need 1s + 1s kill grace. Leave 2s for
+# namespace entry and parsing so an early hung instance cannot hide a later one.
+probe_limit=12
+# Keep namespace logs plus a host retry inside arch-diag's overall deadline.
+[[ $mode != --logs ]] || probe_limit=4
+probe() {
+timeout --kill-after=1 "$probe_limit" "$@" -s -- "$mode" "$connected" "$prefix" <<'INSIDE'
+unset HYPRLAND_INSTANCE_SIGNATURE
+if [ -n "$3" ] && [ -x "$3/bin/hyprctl" ]; then
+  export PATH="$3/bin:$PATH" LD_LIBRARY_PATH="$3/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+fi
+# Logs and socket metadata do not depend on a responding hyprctl.
+if [ "$1" = --logs ]; then
   runtime=/run/user/@UID@
-  found=0
-  [ -d "$runtime/hypr" ] || echo "no runtime log dir: $runtime/hypr"
+  id
+  printf 'mount/pid namespaces: '; readlink /proc/self/ns/mnt /proc/self/ns/pid
+  printf 'runtime mount: '; findmnt -T "$runtime" -o TARGET,SOURCE,FSTYPE,OPTIONS
+  ls -ldn "$runtime" "$runtime/hypr" 2>&1
+  find "$runtime/hypr" /tmp/hypr -mindepth 1 -maxdepth 2 \
+    -printf '%y %m %U:%G %p\n' 2>/dev/null | head -100
+  # Most recent four bounded logs, including startup that never made sockets.
   entries=$(find "$runtime/hypr" /tmp/hypr -mindepth 1 -maxdepth 2 -type f \
     \( -name hyprland.log -o -name hyprlandd.log \) -printf '%T@ %p\n' 2>/dev/null | sort -rn | head -4)
+  found=0
   while IFS= read -r entry; do
     file=${entry#* }
     [ -n "$entry" ] && [ -f "$file" ] && [ ! -L "$file" ] || continue
@@ -48,16 +84,7 @@ LOGS
   [ "$found" = 1 ] || echo 'no hyprland.log found'
   exit 0
 fi
-leader=$(timeout --kill-after=1 2 machinectl show arch-desktop -p Leader --value 2>/dev/null) || exit 1
-case "$leader" in ''|*[!0-9]*) exit 1 ;; esac
-[ "$leader" -gt 1 ] || exit 1
-# An old, still-live desktop must not satisfy the new session's startup gate.
-[ "$leader" != "$excluded" ] || exit 1
-exec timeout --kill-after=1 3 sudo -n nsenter -t "$leader" -a \
-  runuser -u '@USER@' -- env XDG_RUNTIME_DIR=/run/user/@UID@ \
-  /bin/sh -s -- "$mode" "$connected" <<'INSIDE'
-unset HYPRLAND_INSTANCE_SIGNATURE
-set -f
+[ "$(id -u)" = '@UID@' ] || { echo 'ipc-error: wrong probe uid' >&2; exit 1; }
 if [ "$1" = --instances ]; then
   hyprctl -j instances 2>&1
   exit
@@ -66,23 +93,49 @@ if [ "$1" = --info ]; then
   id
   printf 'machine-id bytes: '; wc -c < /etc/machine-id
   pacman -Q hyprland aquamarine mesa quickshell 2>&1
+  echo 'Actual compositor executables and graphics libraries (packages above may be unused):'
+  for pid in $(pgrep -x Hyprland); do
+    proc=/proc/$pid
+    [ "$(basename "$(readlink "$proc/exe" 2>/dev/null)")" = Hyprland ] || continue
+    readlink "$proc/exe"
+    awk '/lib(EGL_mesa|gbm|gallium|LLVM|aquamarine|hyprutils|hyprlang)/ {print $NF}' "$proc/maps" 2>/dev/null | sort -u
+  done
+  [ ! -f /opt/debian-mesa/manifest.json ] || cat /opt/debian-mesa/manifest.json
   exit
 fi
-# Instances may include stale shared runtime sockets. Check PID, executable and UID
-# in the desktop's PID namespace before connecting; do not trust the host's instance.
-instances=$(hyprctl -j instances 2>/dev/null | jq -r '.[] |
+# hyprctl instances discovers lock files, not the compositor's progress. Bound
+# discovery separately so socket+lock enumeration still works if it fails.
+instances=$(timeout --kill-after=1 1 hyprctl -j instances 2>/dev/null | jq -r '.[] |
   select((.pid | type) == "number" and (.instance | type) == "string") |
-  "\(.pid):\(.instance)"')
-for entry in $instances; do
+  "\(.pid):\(.instance)"' 2>/dev/null)
+for dir in "$XDG_RUNTIME_DIR"/hypr/*; do
+  [ -d "$dir" ] && [ ! -L "$dir" ] || continue
+  [ -S "$dir/.socket.sock" ] || continue
+  pid=$(head -1 "$dir/hyprland.lock" 2>/dev/null)
+  instances="$instances
+$pid:${dir##*/}"
+done
+set -f
+count=0
+for entry in $(printf '%s\n' "$instances" | sort -u); do
   pid=${entry%%:*}; signature=${entry#*:}
   case "$pid" in ''|*[!0-9]*) continue ;; esac
-  case "$signature" in ''|*[!A-Za-z0-9_]*) continue ;; esac
+  case "$signature" in ''|*[!A-Za-z0-9_-]*) continue ;; esac
+  dir="$XDG_RUNTIME_DIR/hypr/$signature"
   [ "$(stat -c %u "/proc/$pid" 2>/dev/null)" = '@UID@' ] || continue
   [ "$(basename "$(readlink "/proc/$pid/exe" 2>/dev/null)")" = Hyprland ] || continue
+  [ ! -L "$dir" ] && [ "$(stat -c %u "$dir" 2>/dev/null)" = '@UID@' ] || continue
+  if [ ! -S "$dir/.socket.sock" ]; then
+    echo "ipc-wait: instance=$signature pid=$pid command socket absent" >&2
+    continue
+  fi
+  count=$((count + 1)); [ "$count" -le 4 ] || break
+  export HYPRLAND_INSTANCE_SIGNATURE="$signature"
+  echo "ipc-probe: instance=$signature pid=$pid uid=$(id -u) socket=$dir/.socket.sock" >&2
   if [ "$1" = --summary ] || [ "$1" = --all ]; then
-    monitors=$(hyprctl -i "$signature" -j monitors all 2>/dev/null) || continue
+    monitors=$(timeout --kill-after=1 1 hyprctl -i "$signature" -j monitors all 2>&1) || { echo "ipc-wait: $monitors" >&2; continue; }
   else
-    monitors=$(hyprctl -i "$signature" -j monitors 2>/dev/null) || continue
+    monitors=$(timeout --kill-after=1 1 hyprctl -i "$signature" -j monitors 2>&1) || { echo "ipc-wait: $monitors" >&2; continue; }
   fi
   if [ "$1" = --all ]; then
     printf '%s\n' "$monitors" | jq -e 'if type == "array" then . else error("invalid monitor report") end' && exit 0
@@ -104,5 +157,30 @@ for entry in $instances; do
       sort_by(if (.name as $name | $names | index($name)) != null then 0 else 1 end)' && exit 0
   fi
 done
+if [ "$count" = 0 ]; then
+  # No lock is written until startup completes. Show the newest directory's
+  # state even in the event-socket-only failure, without claiming it is live.
+  latest=$(find "$XDG_RUNTIME_DIR/hypr" -mindepth 1 -maxdepth 1 -type d \
+    -printf '%T@ %f\n' 2>/dev/null | sort -rn | head -1)
+  signature=${latest#* }
+  case "$signature" in ''|*[!A-Za-z0-9_-]*) ;;
+    *) dir="$XDG_RUNTIME_DIR/hypr/$signature"
+       command_socket=absent; event_socket=absent; lock=absent
+       [ ! -S "$dir/.socket.sock" ] || command_socket=present
+       [ ! -S "$dir/.socket2.sock" ] || event_socket=present
+       [ ! -f "$dir/hyprland.lock" ] || lock=present
+       echo "ipc-wait: newest instance=$signature command_socket=$command_socket event_socket=$event_socket lock=$lock (liveness unverified)" >&2 ;;
+  esac
+fi
+echo "ipc-wait: no usable monitor; checked=$count (see namespace logs/socket listing)" >&2
 exit 1
 INSIDE
+}
+probe "${runner[@]}"
+rc=$?
+if (( rc != 0 )) && [[ $mode == --logs && ${runner[0]} != /bin/sh ]]; then
+  echo 'namespace log probe failed; retrying surviving host runtime logs'
+  probe /bin/sh
+  rc=$?
+fi
+exit "$rc"

@@ -15,9 +15,10 @@ sudo journalctl -b -u systemd-machined --no-pager
 按 `stage=` 顺序区分 sudo/挂载预检、nspawn 注册、容器入口、start-hyprland、
 输出就绪、诊断、清理和回退。容器清理后 `machinectl` 查不到它，不代表从未启动。
 
-独立文本终端/SSH、显示服务停止时可运行 `~/.local/bin/arch-selftest`。
-它前台运行一次、无 Weston 回退，打印私有日志路径；已有会话时拒绝执行。
-详见 [自检与证据](v0.2.5-validation.md)。
+在 Linux Terminal 的文本标签页（或独立 SSH）直接运行 `~/.local/bin/arch-selftest`。
+它先停止 weston.socket 和 weston.service，关闭当前图形应用；有界等待锁/seat，前台测试并打印私有日志路径。
+完成、失败或收到可处理信号后重启 socket/service 恢复显示，无需手动停止服务；仍有活跃拥有者时报告 PID/命令并拒绝。
+详见 [自检与证据](v0.2.6-validation.md)。
 
 ## Hyprland 无法启动
 
@@ -28,6 +29,13 @@ v0.2.4 不再固定 Virtual-1；连接器编号可能改变。Debian 宿主运�
 `~/.local/bin/arch-diag` 保存私有原始 monitors all、DRM status 和原始日志尾部；
 启动 gate 会在停止 Arch、回退 Weston 前自动收集。若输出有尺寸但仍黑屏，
 IPC 就绪不能证明像素已显示，请保留诊断进一步定位。
+v0.2.6 的日志优先记录容器命名空间、runtime 挂载、UID/权限、socket 列表和真正的 hyprland.log。
+VM 回溯已确认一种启动阻塞：Aquamarine 连接 weston.socket 的 wayland-0，等待无人响应的 Wayland 握手，
+尚未建立自己的命令 socket。直接 DRM 启动现在把父 WAYLAND_DISPLAY 设为 /dev/null 并清除 WAYLAND_SOCKET，
+使该可选连接立即失败；Hyprland 随后为客户端设置自己的有效 socket。不要把 /dev/null 加到客户端或全局环境。
+`ipc-wait` 的 socket absent 表示尚未建立命令 socket；存在 socket 但 probe 超时仍需日志判断启动进度，不能仅凭此断言 DRM hang。
+`(EE) could not connect to wayland server` 出现在清理阶段时可能是 Xwayland 的退出消息，不等于原始故障点。
+用户服务无法杀死 root nspawn 的 cgroup（EPERM）时，由拥有者限定的 sudo machinectl 清理；以 cleanup-complete 和注册消失为准。
 
 切换方式：`~/.local/bin/hypr-switch arch`，然后完全关闭 Linux Terminal
 应用再重新打开。恢复 Debian 使用 `~/.local/bin/hypr-switch debian` 后同样关闭/重开；
@@ -154,7 +162,7 @@ machinectl status arch-desktop
 确认无需保留该 Arch 桌面中的工作后，运行以下恢复步骤；这会结束已有 Arch 会话：
 
 ```bash
-systemctl --user stop weston.service
+systemctl --user stop weston.socket weston.service
 sudo machinectl terminate arch-desktop
 machinectl list  # 确认 arch-desktop 已消失
 hypr-switch debian
