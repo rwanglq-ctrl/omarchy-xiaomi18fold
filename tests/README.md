@@ -84,7 +84,8 @@ Docker/QEMU simulation also resolves a mirror using the real ALARM `getent`
 with a synthetic `127.0.0.53` host resolver and checks cached rootfs reuse.
 
 `bash tests/display-regressions.sh` exercises output readiness, stale-instance
-filtering, IPC timeouts, fallback and failed cleanup, stop signals, safe deferred
+filtering, arbitrary connected connector detection, monitors-all snapshots,
+failed-IPC log capture, IPC timeouts, fallback and failed cleanup, stop signals, safe deferred
 switching, private diagnostics, renderer flags/opt-outs and interactive PATH with
 offline mocks. It is included in quick and full checks. Mock recovery is not
 evidence of visible frames on Android virtio_gpu; see

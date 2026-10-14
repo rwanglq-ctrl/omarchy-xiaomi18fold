@@ -1,8 +1,8 @@
 #!/bin/sh
 # Installed by omarchy-alarm-nspawn (host/install.sh); @PLACEHOLDERS@ filled at install.
 # Query only the already-running desktop; never start archbox or another compositor.
-# --logs: compositor log; --info: packages; --summary: monitor fields without names
-# of workspaces; default: active Virtual-1 monitor JSON on success.
+# --logs: compositor log; --info: packages; --all: raw monitors all (private); --summary: fields without names
+# of workspaces; --connected: autodetected DRM connectors; default: usable monitor JSON.
 mode=${1:-}
 excluded=''
 case "$mode" in
@@ -10,18 +10,51 @@ case "$mode" in
     [ "$#" = 2 ] || exit 2
     excluded=$2; mode=''
     case "$excluded" in *[!0-9]*) exit 2 ;; esac ;;
-  ''|--logs|--info|--summary) [ "$#" -le 1 ] || exit 2 ;;
+  ''|--logs|--info|--summary|--all|--connected) [ "$#" -le 1 ] || exit 2 ;;
   *) exit 2 ;;
 esac
-leader=$(timeout 2 machinectl show arch-desktop -p Leader --value 2>/dev/null) || exit 1
+# Connector names differ between boots and may differ from Aquamarine names.
+# Prefer a sysfs match in the report, but never require it for IPC readiness.
+connected=$(
+  for status in /sys/class/drm/card0-*/status; do
+    [ -r "$status" ] || continue
+    [ "$(cat "$status")" = connected ] || continue
+    connector=${status%/status}; connector=${connector##*/card0-}
+    printf '%s\n' "$connector"
+  done
+)
+if [ "$mode" = --connected ]; then
+  [ -n "$connected" ] || exit 1
+  printf '%s\n' "$connected"
+  exit 0
+fi
+leader=$(timeout --kill-after=1 2 machinectl show arch-desktop -p Leader --value 2>/dev/null) || exit 1
 case "$leader" in ''|*[!0-9]*) exit 1 ;; esac
 [ "$leader" -gt 1 ] || exit 1
 # An old, still-live desktop must not satisfy the new session's startup gate.
 [ "$leader" != "$excluded" ] || exit 1
 exec timeout --kill-after=1 3 sudo -n nsenter -t "$leader" -a \
   runuser -u '@USER@' -- env XDG_RUNTIME_DIR=/run/user/@UID@ \
-  /bin/sh -s -- "$mode" <<'INSIDE'
+  /bin/sh -s -- "$mode" "$connected" <<'INSIDE'
 unset HYPRLAND_INSTANCE_SIGNATURE
+if [ "$1" = --logs ]; then
+  # The UID runtime is shared with the host. Include bounded, timestamped tails
+  # even after a crash or failed IPC; callers must treat them as private evidence.
+  count=0
+  find "$XDG_RUNTIME_DIR/hypr" -mindepth 2 -maxdepth 2 -type f \
+    -name hyprland.log -printf '%T@ %p\n' 2>/dev/null | sort -rn |
+  while IFS= read -r entry; do
+    log=${entry#* }
+    [ -r "$log" ] && [ ! -L "$log" ] || continue
+    instance=${log%/hyprland.log}; instance=${instance##*/}
+    case "$instance" in ''|*[!A-Za-z0-9_]*) continue ;; esac
+    count=$((count+1)); [ "$count" -le 4 ] || break
+    printf '\n--- %s ---\n' "$log"
+    stat -c 'modified: %y' "$log" 2>/dev/null || :
+    tail -c 131072 "$log"
+  done
+  exit 0
+fi
 set -f
 if [ "$1" = --info ]; then
   pacman -Q hyprland aquamarine mesa 2>&1
@@ -38,25 +71,30 @@ for entry in $instances; do
   case "$signature" in ''|*[!A-Za-z0-9_]*) continue ;; esac
   [ "$(stat -c %u "/proc/$pid" 2>/dev/null)" = '@UID@' ] || continue
   [ "$(basename "$(readlink "/proc/$pid/exe" 2>/dev/null)")" = Hyprland ] || continue
-  if [ "$1" = --logs ]; then
-    tail -c 131072 "$XDG_RUNTIME_DIR/hypr/$signature/hyprland.log" 2>/dev/null
+  if [ "$1" = --summary ] || [ "$1" = --all ]; then
+    monitors=$(hyprctl -i "$signature" -j monitors all 2>/dev/null) || continue
+  else
+    monitors=$(hyprctl -i "$signature" -j monitors 2>/dev/null) || continue
+  fi
+  if [ "$1" = --all ]; then
+    printf '%s\n' "$monitors" | jq -e 'if type == "array" then . else error("invalid monitor report") end' && exit 0
     continue
   fi
-  monitors=$(hyprctl -i "$signature" -j monitors 2>/dev/null) || continue
   if [ "$1" = --summary ]; then
     # Diagnostics must preserve inactive/empty outputs too, without client names.
     printf '%s\n' "$monitors" | jq -e 'if type == "array" then
-      map({name, width, height, refreshRate, dpmsStatus, disabled}) else error("invalid monitor report") end' && exit 0
+      map({name, width, height, refreshRate, dpmsStatus, disabled, fallback}) else error("invalid monitor report") end' && exit 0
     continue
   fi
   if printf '%s\n' "$monitors" | jq -e 'type == "array" and any(.[];
-    .name == "Virtual-1" and (.width | type) == "number" and
+    (.name | type) == "string" and (.name | length) > 0 and
+    (.name | test("^(HEADLESS|FALLBACK)(-|$)"; "i") | not) and (.width | type) == "number" and
     (.height | type) == "number" and .width > 0 and .height > 0 and
     .dpmsStatus == true and (.disabled != true) and (.fallback != true))' >/dev/null 2>&1; then
-    printf '%s\n' "$monitors"
-    exit 0
+    printf '%s\n' "$monitors" | jq --arg connected "$2" '
+      ($connected | split("\n")) as $names |
+      sort_by(if (.name as $name | $names | index($name)) != null then 0 else 1 end)' && exit 0
   fi
 done
-[ "$1" = --logs ] && exit 0
 exit 1
 INSIDE

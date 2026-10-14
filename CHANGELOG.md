@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.2.4 — 2026-10-14
+
+- Remove the Virtual-1 assumption: catch-all preferred monitor rule, any usable
+  non-fallback output satisfies startup, and arch-output autodetects connected
+  card0 connectors without requiring kernel/Aquamarine names to match.
+- Preserve pre-fallback monitors all, filtered Arch runtime log tails (even when
+  IPC failed), and DRM status in private diagnostics. Keep software GL,
+  AQ_NO_MODIFIERS and software cursors.
+- Correct installation hints: select Arch, fully close/reopen Linux Terminal;
+  retain the early shell PATH block and verify interactive/login shells.
+- Fail safely when an existing desktop has an unreadable previous leader.
+- Extend display regressions for connector changes and pre-cleanup diagnostics.
+  Pad visible-frame verification remains outstanding; publish to GitHub only.
+
 ## 0.2.3 — 2026-10-13
 
 - Set software llvmpipe and linear DRM buffer defaults before nspawn launch;

@@ -29,6 +29,16 @@ sudo systemd-nspawn -D /var/lib/machines/arch /bin/bash
 
 ### 症状：黑屏或闪退
 
+v0.2.4 不再固定 Virtual-1；连接器编号可能改变。Debian 宿主运行
+`~/.local/bin/arch-output --connected` 查看内核已连接的 card0 输出。
+`~/.local/bin/arch-diag` 保存私有原始 monitors all、DRM status 和过滤日志尾部；
+启动 gate 会在停止 Arch、回退 Weston 前自动收集。若输出有尺寸但仍黑屏，
+IPC 就绪不能证明像素已显示，请保留诊断进一步定位。
+
+切换方式：`~/.local/bin/hypr-switch arch`，然后完全关闭 Linux Terminal
+应用再重新打开。恢复 Debian 使用 `~/.local/bin/hypr-switch debian` 后同样关闭/重开；
+不要在当前图形终端内重启 weston.service。
+
 检查 Hyprland 配置：
 ```bash
 # 在容器内

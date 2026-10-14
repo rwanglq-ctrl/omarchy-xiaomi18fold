@@ -1,6 +1,6 @@
 #!/bin/sh
 # Installed by omarchy-alarm-nspawn (host/install.sh); @PLACEHOLDERS@ filled at install.
-# A running PID/socket is insufficient: require a usable Virtual-1 output via IPC.
+# A running PID/socket is insufficient: require a usable non-fallback output via IPC.
 stop_arch() {
   timeout --kill-after=1 3 sudo -n machinectl kill arch-desktop --kill-whom=all --signal=SIGTERM >/dev/null 2>&1 || :
   i=0
@@ -18,7 +18,15 @@ stop_arch() {
 mode=$(cat "$HOME/.config/hypr-session-mode" 2>/dev/null || echo debian)
 if [ "$mode" = arch ]; then
   if sudo -n test -x '@ROOTFS@/usr/bin/start-hyprland'; then
-    old_leader=$(timeout 2 machinectl show arch-desktop -p Leader --value 2>/dev/null || :)
+    old_leader=$(timeout --kill-after=1 2 machinectl show arch-desktop -p Leader --value 2>/dev/null || :)
+    old_unknown=0
+    case "$old_leader" in
+      ''|*[!0-9]*)
+        old_leader=''
+        # Missing machine is normal. An existing machine with an unreadable
+        # leader must not satisfy the new session's gate on a later retry.
+        if timeout --kill-after=1 2 machinectl show arch-desktop >/dev/null 2>&1; then old_unknown=1; fi ;;
+    esac
     "$HOME/.local/bin/arch-hyprland" &
     child=$!
     trap 'stop_arch; exit 143' TERM
@@ -26,7 +34,7 @@ if [ "$mode" = arch ]; then
     ready=0
     deadline=$(( $(date +%s) + 30 ))
     while kill -0 "$child" 2>/dev/null && [ "$(date +%s)" -lt "$deadline" ]; do
-      if "$HOME/.local/bin/arch-output" --exclude-leader "$old_leader" >/dev/null 2>&1; then ready=1; break; fi
+      if [ "$old_unknown" = 0 ] && "$HOME/.local/bin/arch-output" --exclude-leader "$old_leader" >/dev/null 2>&1; then ready=1; break; fi
       sleep 1
     done
     if [ "$ready" = 1 ]; then
@@ -35,13 +43,15 @@ if [ "$mode" = arch ]; then
       trap - TERM INT
       exit "$result"
     fi
-    if kill -0 "$child" 2>/dev/null; then
-      reason="is alive but has no active Virtual-1"
+    if [ "$old_unknown" = 1 ]; then
+      reason="has an unknown previous leader; cannot verify a fresh session"
+    elif kill -0 "$child" 2>/dev/null; then
+      reason="is alive but has no usable output"
     else
-      reason="exited before establishing Virtual-1"
+      reason="exited before establishing a usable output"
     fi
     echo "hypr-session: Arch $reason (startup deadline 30s); collecting diagnostics and falling back to Weston" >&2
-    timeout --kill-after=1 10 "$HOME/.local/bin/arch-diag" >&2 || :
+    timeout --kill-after=1 20 "$HOME/.local/bin/arch-diag" >&2 || :
     if ! stop_arch; then
       echo "hypr-session: cannot release arch-desktop; refusing a competing compositor" >&2
       exit 1

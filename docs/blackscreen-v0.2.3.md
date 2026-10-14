@@ -111,3 +111,31 @@ MIMO analysis, patch drafting and final review prompts and outputs are saved at
 `/tmp/mimo-logs/blackscreen-analysis.log`, `blackscreen-drafting.log` and
 `blackscreen-review.log` on the release workstation. Findings were checked
 against source and behavioral tests, rather than accepted without verification.
+
+
+## v0.2.4 follow-up — 2026-10-14
+
+Pad Weston diagnostics showed Virtual-1 disconnected and Virtual-2 connected,
+with preferred 846x1012@60 on virtio_gpu. These are Weston/kernel observations,
+not proof that Arch Hyprland had DPMS on or displayed frames. The v0.2.3 gate
+required the exact IPC name Virtual-1 and would reject a usable Virtual-2.
+This is a confirmed logic defect with high confidence; it does not establish
+why the Pad displayed black pixels. The existing Lua catch-all already matched
+other outputs, so removing the redundant named rule alone is not proof of a fix.
+
+v0.2.4 retains only the preferred/auto/1 catch-all. Readiness accepts any named,
+positive-size, DPMS-on, enabled non-fallback output, excluding synthetic
+HEADLESS/FALLBACK outputs. Kernel card0 connected names are discovered and
+preferred in reports, never required to equal Aquamarine names. Software GL,
+llvmpipe, disabled modifiers, software cursors and atomic DRM remain defaults.
+Single-output touchscreen mapping stays automatic; no connector is pinned.
+
+Before cleanup, the gate gives arch-diag a bounded 20-second collection window.
+The private 0600 report now includes raw monitors all (including workspace names
+and possible device identifiers), raw DRM statuses, and filtered runtime log
+and journal tails. Unlike v0.2.3's summary-only report, raw monitor data is
+intentionally retained for diagnosis; inspect before sharing. Logs can be stale
+or host-shared because the UID runtime is bind-mounted; paths and modification
+timestamps identify each of the newest four 128KiB tails. Live monitor IPC still
+requires the container PID/UID/executable validation. Device visible-frame and
+touchscreen verification remain outstanding.

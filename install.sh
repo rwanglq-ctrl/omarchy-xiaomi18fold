@@ -228,7 +228,8 @@ run_debian() {
   "${nspawn[@]}" </dev/null
 
   log "done"
-  note "switch the display to the Arch desktop: hypr-switch arch --now"
+  note "set the display mode: ~/.local/bin/hypr-switch arch"
+  note "then fully close and reopen the Linux Terminal app to start Arch"
   note "shell in the container: archbox (or archsh while the Arch desktop runs)"
 }
 

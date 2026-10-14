@@ -556,4 +556,4 @@ fi
 
 log "host side done"
 note "enter the container:      archbox        (shell in the running desktop: archsh)"
-note "use the Arch desktop:     hypr-switch arch; reopen display (back: hypr-switch debian)"
+note "use the Arch desktop:     ~/.local/bin/hypr-switch arch; fully close/reopen Linux Terminal (back: hypr-switch debian)"

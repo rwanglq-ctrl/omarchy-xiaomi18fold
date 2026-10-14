@@ -109,3 +109,39 @@ Release workstation evidence:
 - `/tmp/v023-repro/headless.log`: failed isolated headless attempt.
 - `/tmp/mimo-logs/blackscreen-analysis.log`, `blackscreen-drafting.log`,
   `blackscreen-review.log`: MIMO prompts, retries, analysis, drafting and reviews.
+
+## v0.2.4 — 2026-10-14
+
+`tests/run.sh --full` passed all twelve checks in 781 seconds (exit 0) in a
+fresh disposable ALARM arm64 rootfs under QEMU on x86_64. ShellCheck was present.
+This includes the extended display regressions, real core installation,
+Hyprland 0.56.2-4 configuration verification (`config ok`) and second-run
+package/config/mode/symlink idempotence. The isolation probe selected unshare
+plus chroot. The runner used credential-preserving POCF binfmt in its own
+rootless namespace and ALARM_TEST_EMULATED=1 only in disposable roots.
+
+Native focused display regressions, ShellCheck and full Lua configuration
+verification also passed. Native quick package validation cannot find
+archlinuxarm-keyring in the workstation's x86_64 repositories; the authoritative
+ALARM full run passed that check. Initial runner setup attempts hit network and
+binfmt namespace limitations; an initial suite read a test during replacement.
+The final full run used the frozen patch and passed without those failures.
+
+Covered display changes include Virtual-2/Virtual-16 and arbitrary real outputs,
+synthetic fallback rejection, card0 connected discovery and name mismatch,
+raw monitors all vs redacted summaries, newest-four bounded failed-IPC log tails,
+private pre-cleanup diagnostics, unknown previous leader recovery, renderer
+knobs and interactive/profile PATH. The Pad's Weston observation establishes
+connector variance, not visible Hyprland scanout; device frames and touchscreen
+mapping remain unverified.
+
+Release workstation logs:
+
+- `/tmp/v024-final-full.log`: twelve PASS rows, exit 0.
+- `/tmp/v024-display-tests.log`: final native display regressions.
+- `/tmp/v024-config-verify.log`: native complete Lua configuration verification.
+- `/tmp/v024-shellcheck.log`: final native ShellCheck, exit 0.
+- `/tmp/mimo-logs/v024-analysis.log`: MIMO analysis prompt and output.
+- `/tmp/mimo-logs/v024-design.log`: MIMO patch-design prompt and output.
+- `/tmp/mimo-logs/v024-review.log`: MIMO initial review prompt and output.
+- `/tmp/mimo-logs/v024-review-final.log`: MIMO final review, no blocking findings.

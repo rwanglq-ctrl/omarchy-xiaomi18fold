@@ -13,6 +13,6 @@ trap 'exit 1' HUP INT TERM
 printf '%s\n' "$1" > "$modefile" && mv -f "$modefile" "$HOME/.config/hypr-session-mode" || exit 1
 echo "next desktop start: $1"
 if [ "$2" = --now ]; then
-  echo "hypr-switch: --now deferred: restarting weston.service can close the Android Terminal app. Close/reopen its display to apply; use an independent SSH shell for recovery." >&2
+  echo "hypr-switch: --now deferred: restarting weston.service can close the Android Terminal app. Fully close and reopen the Linux Terminal app to apply; use an independent SSH shell for recovery." >&2
 fi
 exit 0
