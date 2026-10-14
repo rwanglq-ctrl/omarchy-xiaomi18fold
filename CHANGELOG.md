@@ -12,7 +12,12 @@
   retain the early shell PATH block and verify interactive/login shells.
 - Fail safely when an existing desktop has an unreadable previous leader.
 - Extend display regressions for connector changes and pre-cleanup diagnostics.
-  Pad visible-frame verification remains outstanding; publish to GitHub only.
+  Pad visible-frame verification remains outstanding.
+- How this release was made: Codex (on rwolinux) implemented the code and
+  tests and ran verification (full suite 12/12 PASS). pi with
+  xiaomi/mimo-v2.6-pro-ultraspeed did analysis, design, review and final
+  review (/tmp/mimo-logs/v024-{analysis,design,review,review-final}.log).
+  GLM 5.3 was not used.
 
 ## 0.2.3 — 2026-10-13
 
