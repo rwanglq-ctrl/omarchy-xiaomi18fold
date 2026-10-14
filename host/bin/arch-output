@@ -75,9 +75,9 @@ if [ "$1" = --logs ]; then
     file=${entry#* }
     [ -n "$entry" ] && [ -f "$file" ] && [ ! -L "$file" ] || continue
     found=1
-    printf '\n--- %s ---\n' "$file"
-    stat -c 'modified: %y' "$file"
-    tail -c 131072 "$file"
+    printf '\n--- runtime-log snapshot (may predate this attempt): %s ---\n' "$file"
+    stat -c 'snapshot modified: %y' "$file"
+    tail -c 131072 "$file" | sed 's/^/snapshot: /'
   done <<LOGS
 $entries
 LOGS

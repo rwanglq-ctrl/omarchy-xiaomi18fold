@@ -177,10 +177,11 @@ finish() {
   (( finished == 0 )) || return 0
   finished=1
   stage "$why" "exit=$rc"
+  stage diagnostics-begin 'next block contains diagnostic snapshots and historical journal'
   timeout --kill-after=1 20 "$HOME/.local/bin/arch-diag" --stdout 8>&- 7<&- || stage diagnostics-incomplete
   if (( owned )); then stop_arch || rc=1; fi
   (( stop_rc == 0 )) || rc=$stop_rc
-  if (( ! selftest && ! direct && ! owned && stop_rc == 0 )) && [[ $why == gate-timeout || $why == launcher-exit || $why == registration-failed ]]; then
+  if (( ! selftest && ! direct && ! owned && stop_rc == 0 )) && [[ $why == gate-timeout || $why == launcher-exit ]]; then
     stage fallback-Weston
   fi
   close_log
@@ -197,17 +198,24 @@ trap 'on_signal 129 signal-HUP' HUP
 trap 'on_signal 130 signal-INT' INT
 trap 'on_signal 143 signal-TERM' TERM
 trap 'on_signal 124 selftest-timeout' USR1
-stage session-start "selftest=$selftest direct=$direct"
+stage session-start "selftest=$selftest direct=$direct version=@VERSION@ pid=$$ attempt=${log##*/}"
+for component in hypr-session arch-hyprland arch-output arch-diag arch-selftest; do
+  sha256sum "$HOME/.local/bin/$component"
+done
 printf '%s\n' "$token" > "$owner" || exit 1
 owned=1
 OMARCHY_SESSION_INTERNAL=1 "$HOME/.local/bin/arch-hyprland" "$@" 8>&- 7<&- &
 child=$!
 ready=0; registered=0
+stage launcher-start "pid=$child"
 # The readiness deadline uses the same monotonic clock as cleanup.
 deadline=$(($(monotonic_seconds) + 30))
 while kill -0 "$child" 2>/dev/null && before_deadline "$deadline"; do
   leader=$(show_machine -p Leader --value 2>/dev/null || :)
-  if [[ $leader =~ ^[0-9]+$ && $leader -gt 1 ]]; then registered=1; fi
+  if [[ $leader =~ ^[0-9]+$ && $leader -gt 1 ]] && (( ! registered )); then
+    registered=1
+    stage registration-observed "leader=$leader"
+  fi
   if "$HOME/.local/bin/arch-output" >/dev/null; then ready=1; break; fi
   sleep 1
 done
@@ -227,8 +235,12 @@ if kill -0 "$child" 2>/dev/null; then
   reason=gate-timeout; result=1
 else
   wait "$child"; result=$?
+  # A short-lived container can register, enter and exit between two polls.
+  # Not observing Leader is NOT proof that registration failed. Preserve the
+  # actual wait status before converting an early clean exit into gate failure.
+  stage launcher-status "pid=$child status=$result registration_observed=$registered readiness=0"
   (( result != 0 )) || result=1
-  if (( registered )); then reason=launcher-exit; else reason=registration-failed; fi
+  reason=launcher-exit
 fi
 finish "$result" "$reason"; result=$?
 if (( selftest || direct )); then exit "$result"; fi

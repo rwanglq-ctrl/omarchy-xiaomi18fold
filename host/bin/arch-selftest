@@ -1,6 +1,7 @@
 #!/bin/bash
 # Installed by omarchy-alarm-nspawn. Run from Linux Terminal's text tab.
 set -u
+umask 077
 [[ $# == 0 ]] || { echo 'usage: arch-selftest' >&2; exit 2; }
 runtime=/run/user/@UID@
 [[ -d $runtime && -O $runtime ]] || { echo 'runtime-invalid' >&2; exit 2; }
@@ -8,6 +9,7 @@ runtime=/run/user/@UID@
 exec 9>>"$runtime/omarchy-alarm-selftest.lock" || exit 2
 flock -n 9 || { echo 'selftest-busy: another arch-selftest is stopping/testing/restoring the display' >&2; exit 2; }
 child=''; restore=0; signal_rc=0
+evidence=$(mktemp "$runtime/omarchy-alarm-selftest.XXXXXXXX") || exit 2
 ctl() { timeout --kill-after=2 70 systemctl --user "$@"; }
 on_signal() {
   signal_rc=$1
@@ -32,6 +34,15 @@ restore_display() {
     fi
   fi
   (( signal_rc == 0 )) || rc=$signal_rc
+  # Restoration can create a newer service log. Publish this exact attempt
+  # AFTER restoration; never discover it by sorting arch-session-*.log.
+  if [[ -s $evidence ]]; then
+    cat "$evidence"
+  else
+    echo 'selftest: no completed evidence path; see any Session evidence: line or preflight/seat error above' >&2
+  fi
+  printf 'selftest: exit=%s; use only the evidence path from this command (do not select the newest session log)\n' "$rc" >&2
+  rm -f -- "$evidence"
   exit "$rc"
 }
 trap restore_display EXIT
@@ -47,7 +58,7 @@ ctl stop weston.socket >&2 || { echo 'stop-failed: weston.socket' >&2; exit 2; }
 ctl stop weston.service >&2 || { echo 'stop-failed: weston.service' >&2; exit 2; }
 (( signal_rc == 0 )) || exit "$signal_rc"
 # hypr-session owns the bounded lock/seat wait and rechecks under its lock.
-timeout --foreground --signal=USR1 --kill-after=60 90 "$HOME/.local/bin/hypr-session" --selftest 9>&- &
+timeout --foreground --signal=USR1 --kill-after=60 90 "$HOME/.local/bin/hypr-session" --selftest >"$evidence" 9>&- &
 child=$!
 # wait can be interrupted by a trapped signal; reap before restoring the display.
 # Retry an interrupted wait without consulting a possibly recycled PID.

@@ -9,27 +9,6 @@
 
 ---
 
-## 层级结构
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│  Android 16 Linux Terminal（AVF 虚拟机）                        │
-│  ┌───────────────────────────────────────────────────────────┐  │
-│  │  Debian 13 (宿主操作系统)                                  │  │
-│  │  ┌─────────────────────────────────────────────────────┐  │  │
-│  │  │  systemd-nspawn 容器 (Arch Linux ARM aarch64)       │  │  │
-│  │  │  ┌───────────────────────────────────────────────┐  │  │  │
-│  │  │  │  Omarchy v4.0.4 + ARM 移植补丁                │  │  │  │
-│  │  │  │  Hyprland (llvmpipe 软件渲染)                  │  │  │  │
-│  │  │  │  quickshell 外壳                               │  │  │  │
-│  │  │  │  fcitx5 + 雾凇拼音 (中文输入)                  │  │  │  │
-│  │  │  └───────────────────────────────────────────────┘  │  │  │
-│  │  └─────────────────────────────────────────────────────┘  │  │
-│  │  seatd ── 把容器 Hyprland 画面转发到宿主显示               │  │
-│  └───────────────────────────────────────────────────────────┘  │
-└─────────────────────────────────────────────────────────────────┘
-```
-
 ## 系统要求
 
 - **设备**: 支持 Android 16 Linux Terminal 的 aarch64 设备（已在 Xiaomi Pad 9 Pro Max 上测试）
@@ -64,7 +43,7 @@ curl -fsSL https://raw.githubusercontent.com/rwanglq-ctrl/omarchy-xiaomipad9pm/m
 
 ### 国内网络安装
 
-发布版本：`0.2.6`。每次发布先推送 GitHub，再由维护者同步 Gitee 的 `main` 和版本标签。以下命令使用 Gitee 源码和国内软件包镜像，无需访问 GitHub；请核对安装器打印的源码 SHA。
+以下命令使用 Gitee 源码和国内软件包镜像；请核对安装器打印的版本和源码 SHA。Gitee 由维护者单独同步，版本可能落后于 GitHub。
 
 ```bash
 curl -fsSL https://gitee.com/zenbardofsuhe/omarchy-xiaomipad9pm/raw/main/install.sh | MIRROR=cn OMARCHY_ALARM_REPO=https://gitee.com/zenbardofsuhe/omarchy-xiaomipad9pm OMARCHY_ALARM_REF=main bash -s -- --profile core
@@ -96,8 +75,7 @@ full 中的 AUR 应用也会跳过。`MIRROR=cn` 要放在管道右侧的 `bash`
 `MIRROR=cn` 默认从 Gitee 拉取本项目源码并选择国内软件包源；`global` 默认从 GitHub 拉取。
 也可设置 `OMARCHY_ALARM_REPO` 指向你自己信任的 Git 镜像。
 引导器缺少 Git 时先通过 Debian apt 安装 `git` 和 CA 证书；克隆后再检出 `OMARCHY_ALARM_REF`，支持分支、标签和完整提交 SHA（SHA 先克隆 `main` 及完整历史再检出）。
-Git 获取失败会明确退出，不请求 Gitee archive，也不再支持 `OMARCHY_ALARM_ARCHIVE_URL`。
-第三方 GitHub 代理不作为默认依赖。完整审计及测试限制见 [国内网络审计](docs/china-network.md)。
+Git 获取失败时请检查网络后重试。
 
 
 或者克隆仓库后手动运行：
@@ -140,70 +118,30 @@ hypr-switch arch
 hypr-switch debian
 ```
 
-### v0.2.6 启动诊断 / Safe Pad update
+切换命令保存下一次显示启动使用的模式。完全关闭 Linux Terminal 应用再重新打开，
+使选择生效。`--now` 也只保存选择。当前 shell 找不到命令时运行：
 
-在 **Debian 宿主**的普通终端运行上面的 `main` 国内 Resume 命令。
-无需删除容器或 rootfs 缓存；已有配置会由安装器更新。安装器不会重启显示服务。
-当前 shell 立即补上 PATH：`export PATH="$HOME/.local/bin:$PATH"`；后续 bash 会话自动生效。
+```bash
+export PATH="$HOME/.local/bin:$PATH"
+```
 
-安全测试：`~/.local/bin/hypr-switch arch`，完全关闭 Linux Terminal 应用再重新打开。
-不要在正在使用的图形终端内手动重启 weston.service。`--now` 现仅保存选择并提示延后；
-任何 shell 都不会因此重启服务，因为 Android 的 shell 无法可靠判定是否属于显示窗口。
-没有启用且尺寸为正的非 fallback 输出时，启动探测 30 秒后会保存诊断、停止 Arch 容器并回到 Weston
-（启动器提前退出会立即收集；诊断和清理有独立超时）。IPC 有活动输出不代表像素已正确显示；若仍黑屏，使用独立的
-Debian 文本终端运行 `~/.local/bin/arch-diag`，然后 `~/.local/bin/hypr-switch debian`，
-完全关闭 Linux Terminal 应用再重新打开。仅在独立 SSH 连接里、接受显示及应用关闭时，才手动运行
-`systemctl --user restart weston.service` 进行恢复。
+## 更新与继续安装
 
-`arch-diag` 是只读命令，打印私有日志路径 `~/.local/state/omarchy-alarm/arch-diag-*.log`，
-不启动容器、不重启服务、不转储环境变量。每次启动的 stdout/stderr、阶段时间、原始 monitors all、真实运行时 Hyprland 日志、shell 日志及 journal
-会在清理前保存到同目录的 `arch-session-*.log`，退出容器后仍可查看。
-日志不再过滤 `Window` 行，可能含窗口标题、工作区名称和设备标识；目录 0700、文件 0600，分享前请检查。
-`arch-output` 只查询运行中的 arch-desktop，成功时输出监视器 JSON；失败返回非零。
+在 Debian 宿主重新运行同一安装命令，使用相同用户和 `--rootfs` 参数（如曾指定）。
+安装器复用现有容器和缓存，更新配置，不会重启显示服务。
 
-v0.2.6 按同一 Pad 的工作参考安装 Debian 13 宿主 Mesa 到容器 `/opt/debian-mesa`，
-保留 pacman 的 Mesa。`manifest.json` 记录包版本、源码版本和文件 SHA256。
-默认由 Mesa/DRM 自动选择驱动，不再强制 `LIBGL_ALWAYS_SOFTWARE`、`GALLIUM_DRIVER` 或 `AQ_*`；
-参考设备仍使用 llvmpipe。Lua 使用通用 preferred,auto,1 显示规则并关闭硬件光标。
-启动时清除 `WAYLAND_DISPLAY`/`WAYLAND_SOCKET`，并仅在容器内屏蔽宿主的空闲 wayland-0 监听 socket。
-以下文件在宿主的 `~/.config/` 中生效，修改后需重新打开显示：
+## 自检
 
-- `arch-no-atomic`：可选 legacy DRM 诊断；默认保留 atomic。
-- `arch-software-rendering`：显式强制 llvmpipe 软件渲染。
-- `arch-no-modifiers`：显式禁用 DRM modifiers。
-- `arch-use-arch-mesa`：跳过 Debian Mesa，使用 Arch Mesa 做对照测试。
-- `arch-hyprland-prefix`：内容为已有可信构建的绝对安装前缀；使用其中的 Hyprland、start-hyprland、hyprctl 和库。
-  不会自动下载或复制参考设备的未知二进制。默认仍为发行版 Hyprland。
-
-创建开关用 `touch ~/.config/文件名`，撤销用 `rm ~/.config/文件名`。
-旧 `arch-hardware-rendering` / `arch-enable-modifiers` 已无作用（现在默认自动选择）。
-工作参考的自定义 Hyprland 0.55 尚无完整构建来源；版本差异、构建方案及验证限制见
-[v0.2.6 validation](docs/v0.2.6-validation.md)。
-
-v0.2.4 修复已确认的连接器假设：一次 Pad Weston 诊断中 Virtual-2 已连接、Virtual-1 未连接（编号可能变化）；
-启动 gate 接受任何可用输出，arch-output 自动读取 card0 的 connected 状态。
-回退前保存 monitors all、Arch Hyprland 日志尾部和 DRM status。单显示器触屏使用默认自动映射。
-v0.2.6 在独立 arm64 VM 中复现并修复空闲 Weston socket 引起的启动阻塞，
-并验证 Debian Mesa 启动、IPC、自检及显示恢复。实体 Pad 的新版本仍待验证，详见
-[v0.2.6 evidence](docs/v0.2.6-validation.md)。
-
-一次性自检：在 Linux Terminal 的**文本标签页**（或独立 SSH）运行：
+在 Linux Terminal 的**文本标签页**或独立 SSH 中运行：
 
 ```bash
 ~/.local/bin/arch-selftest
 ```
 
-命令会关闭显示及当前图形应用：先停止 weston.socket，再停止 weston.service，
-有界等待会话锁和 DRM seat 释放；完成、失败或收到可处理信号后重启 socket/service，恢复所选桌面。
-无需预先手动停止服务。仍有其他活跃拥有者时会报告 PID/命令并拒绝竞争，不删除内核锁文件。
-自检完成后打印私有日志路径；退出 0 表示输出 IPC 就绪且已清理，不等于可见像素已通过验证。
-失败时分享该日志，勿只拍最后几行。v0.2.6 优先在容器挂载命名空间内保存真实 Hyprland 日志、socket 权限和挂载信息，
-并记录显式 instance signature 的探测进度。详见 [v0.2.6 evidence](docs/v0.2.6-validation.md)。
-VM 已复现启动阻塞：Aquamarine 把仍监听的 weston.socket 当成父 Wayland compositor，
-等待无人响应的握手，因而未建立 Hyprland 命令 socket。v0.2.6 的直接 DRM 启动禁用这个父连接；
-Hyprland 启动后仍为客户端设置自己的显示 socket。实体 Pad 和已知正常安装的对照验证尚待完成。
+命令会关闭图形桌面和应用，完成后恢复所选桌面，并打印本次自检的私有日志路径。
+退出 0 表示输出 IPC 就绪且已清理，不保证画面正常。查看命令打印的日志；分享前检查其中的私人信息。
 
-根因证据和复现范围见 [display investigation](docs/blackscreen-v0.2.3.md)。
+[故障排除 / Troubleshooting](docs/troubleshooting.md)
 
 ## 已知限制
 
@@ -236,39 +174,12 @@ systemctl --user daemon-reload
 rm -rf ~/.local/state/omarchy-alarm
 ```
 
-## 架构文档
-
-详细技术文档见 `docs/` 目录：
-
-- [架构设计](docs/architecture.md) — uwsm/systemd-user 替代方案
-- [软件包清单](docs/packages.md) — 跳过的包及原因
-- [性能调优](docs/performance.md) — llvmpipe 优化和 udmabuf
-- [故障排除](docs/troubleshooting.md) — 常见问题及解决方法
-
-## 许可证
-
-本项目基于 [MIT 许可证](LICENSE) 发布。
-
-## 致谢
-
-- [Omarchy](https://github.com/basecamp/omarchy) by Basecamp — 框架本身，MIT 许可证
-- [Arch Linux ARM](https://archlinuxarm.org/) — aarch64 发行版
-- [Hyprland](https://hyprland.org/) — Wayland 合成器
-- [fcitx5](https://fcitx5.org/) + [Rime](https://rime.im/) + 雾凇拼音 — 中文输入方案
-- [Xiaomi Pad 9 Pro Max](https://www.mi.com/prod/xiaomi-pad-9-pro-max) — 本项目的测试设备，采用 Xiaomi XRING O3 最新旗舰 AI 处理器
-- **安装配置**：使用 [Claude Code](https://claude.com/claude-code) agent + [Claude Opus 5.5](https://www.anthropic.com/claude-opus-5-5) 模型完成
-- **GitHub 发布**：使用 [Orca](https://www.onorca.dev/) ADE（[GitHub](https://github.com/stablyai/orca)）协调多个 agent 并行完成——
-  [Claude Code](https://claude.com/claude-code)、[Codex](https://github.com/openai/codex)、[Pi](https://pi.dev)、
-  [MiMo Code](https://mimo.xiaomi.com/coder)，以及 [MiMo-V2.6-Pro-UltraSpeed](https://mimo.mi.com/models/en-US/mimo-v2.6-pro-ultraspeed) 模型
-
----
-
 ## English
 
 **Omarchy v4.0.4 on Arch Linux ARM (aarch64), running in a systemd-nspawn container on the
 Debian 13 VM of Android 16's Linux Terminal, and shown on its display through seatd.**
 
-**Tested device**: [Xiaomi Pad 9 Pro Max](https://www.mi.com/prod/xiaomi-pad-9-pro-max), powered by Xiaomi's latest flagship AI processor, the XRING O3 (Android 16 Linux Terminal, Debian 13 aarch64).
+**Device**: Xiaomi Pad 9 Pro Max (Android 16 Linux Terminal, Debian 13 aarch64).
 
 ### Requirements
 
@@ -310,6 +221,42 @@ cd omarchy-xiaomipad9pm
 - `core`: the Omarchy desktop plus Chinese input (fcitx5 + Rime / rime-ice)
 - `full`: core plus extra apps that exist for aarch64
 
+### China installation and resume
+
+```bash
+curl -fsSL https://gitee.com/zenbardofsuhe/omarchy-xiaomipad9pm/raw/main/install.sh | MIRROR=cn OMARCHY_ALARM_REPO=https://gitee.com/zenbardofsuhe/omarchy-xiaomipad9pm OMARCHY_ALARM_REF=main bash -s -- --profile core
+```
+
+Gitee is synchronized separately and may lag GitHub. Check the printed version and source SHA.
+To resume or update, rerun the same installation command with the same user and rootfs path.
+The installer reuses the existing container and cached downloads, and does not restart the display.
+CN mode skips AUR/yay and optional mise downloads.
+
+### Switching desktops and selftest
+
+```bash
+export PATH="$HOME/.local/bin:$PATH"
+hypr-switch arch
+# To select Debian instead:
+hypr-switch debian
+```
+
+Fully close and reopen Linux Terminal to apply your selection. `--now` also saves the selection for later.
+From the Terminal text tab or independent SSH, run:
+
+```bash
+~/.local/bin/arch-selftest
+```
+
+This closes graphical applications, tests output readiness, restores the selected desktop,
+and prints the exact private log path. Exit 0 confirms output IPC readiness and cleanup;
+it does not verify visible frames. Inspect the log before sharing it.
+
+### Uninstall
+
+Follow the commands in [卸载](#卸载) from a text terminal or independent SSH.
+They stop the graphical desktop, delete the Arch container and remove the host launchers.
+
 ### Known limitations
 
 - **No GPU hardware virtualization**: Android 16's Linux Terminal offers no GPU acceleration yet, so the
@@ -321,24 +268,3 @@ cd omarchy-xiaomipad9pm
   notifications or tray icons can misbehave.
 - **Lock screen**: if your password is locked or unset you cannot unlock the lock screen. Set a password first.
 - **x86-only apps are skipped** (1Password, Spotify, Signal, Steam, ...).
-
-### Tests
-
-v0.2.6 reproduces and fixes a startup deadlock against an idle Weston activation
-socket in a Debian arm64 VM. The aligned Debian Mesa stack passes startup, monitor
-IPC, shell IPC and selftest/restoration there. Physical Pad confirmation remains
-outstanding. See [validation evidence and limits](docs/v0.2.6-validation.md).
-
-`tests/run.sh --quick` (syntax, ShellCheck, privacy scan, patches, package names, dry-runs, Lua, hygiene)
-runs on every push; `tests/run.sh --full` installs the `core` profile into a fresh Arch Linux ARM rootfs
-and checks that a second run changes nothing (run it from the *Actions* tab).
-
-Details: [docs/](docs/) (in Chinese). License: [MIT](LICENSE). Built on
-[Omarchy](https://github.com/basecamp/omarchy) by Basecamp.
-Thanks to the [Xiaomi Pad 9 Pro Max](https://www.mi.com/prod/xiaomi-pad-9-pro-max) with Xiaomi's latest flagship AI processor, the XRING O3, the device this project was built and tested on.
-The installation and configuration were done with the [Claude Code](https://claude.com/claude-code) agent and
-the [Claude Opus 5.5](https://www.anthropic.com/claude-opus-5-5) model. The GitHub release was built with the
-[Orca](https://www.onorca.dev/) ADE ([GitHub](https://github.com/stablyai/orca)) coordinating
-[Claude Code](https://claude.com/claude-code), [Codex](https://github.com/openai/codex), [Pi](https://pi.dev) and
-[MiMo Code](https://mimo.xiaomi.com/coder) in parallel, together with the
-[MiMo-V2.6-Pro-UltraSpeed](https://mimo.mi.com/models/en-US/mimo-v2.6-pro-ultraspeed) model.

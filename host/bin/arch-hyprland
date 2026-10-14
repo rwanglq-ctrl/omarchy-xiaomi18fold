@@ -22,12 +22,15 @@ stage preflight-ok
 # Gold reference uses driver autodetection and no AQ/LIBGL overrides. Keep
 # explicit troubleshooting knobs, but do not force them on every launch.
 renderer=""
-[ ! -e "$HOME/.config/arch-software-rendering" ] || renderer="--setenv=LIBGL_ALWAYS_SOFTWARE=1 --setenv=GALLIUM_DRIVER=llvmpipe"
-[ ! -e "$HOME/.config/arch-no-modifiers" ] || renderer="$renderer --setenv=AQ_NO_MODIFIERS=1"
-[ ! -e "$HOME/.config/arch-no-atomic" ] || renderer="$renderer --setenv=AQ_NO_ATOMIC=1"
+software=auto; modifiers=auto; atomic=auto
+[ ! -e "$HOME/.config/arch-software-rendering" ] || { software=1; renderer="--setenv=LIBGL_ALWAYS_SOFTWARE=1 --setenv=GALLIUM_DRIVER=llvmpipe"; }
+[ ! -e "$HOME/.config/arch-no-modifiers" ] || { modifiers=1; renderer="$renderer --setenv=AQ_NO_MODIFIERS=1"; }
+[ ! -e "$HOME/.config/arch-no-atomic" ] || { atomic=1; renderer="$renderer --setenv=AQ_NO_ATOMIC=1"; }
 mesa=""
 libpath=""
+mesa_source=arch
 if [ ! -e "$HOME/.config/arch-use-arch-mesa" ] && sudo -n test -e "$rootfs/opt/debian-mesa/lib/libgbm.so.1"; then
+  mesa_source=debian
   libpath=/opt/debian-mesa/lib
   mesa="--setenv=GBM_BACKENDS_PATH=/opt/debian-mesa/lib/gbm
     --setenv=__EGL_VENDOR_LIBRARY_FILENAMES=/opt/debian-mesa/egl/50_debian_mesa.json"
@@ -58,7 +61,6 @@ done
 if timeout --kill-after=1 2 machinectl show arch-desktop >/dev/null 2>&1; then
   stage registration-collision; exit 1
 fi
-stage nspawn-start
 # /dev/udmabuf: llvmpipe needs it for dmabuf export and EGL_ANDROID_native_fence_sync.
 # Without it Hyprland loses explicit sync and the display shows torn/fragmented frames.
 # Gold has no parent display and an unused Weston socket. Our host socket stays
@@ -68,6 +70,9 @@ parent_mask=""
 if [[ -e /run/user/@UID@/wayland-0 ]]; then
   parent_mask="--bind-ro=/dev/null:/run/user/@UID@/wayland-0"
 fi
+# Log choices in every launch mode, including selftest; auto means no override.
+stage arch-hyprland "software=$software no_modifiers=$modifiers no_atomic=$atomic mesa=$mesa_source launch=$launch parent_mask=${parent_mask:+wayland-0}"
+stage nspawn-start
 # $mesa, $homebinds and $launch are intentionally unquoted so they split into separate words.
 # shellcheck disable=SC2086
 exec sudo -n SYSTEMD_NSPAWN_LOCK=0 systemd-nspawn -q -D "$rootfs" -M arch-desktop \

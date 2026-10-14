@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.2.7 — 2026-10-14
+
+- Keep README limited to installation and usage in Chinese and English; retain
+  exactly one relative troubleshooting link, keep investigation history in
+  CHANGELOG/docs and guard against narrative regressions.
+- Correct the misleading registration-failed diagnosis: it meant the launcher
+  exited before readiness without an observed Leader, not a machined rejection.
+  Retain the raw exit status and registration observations; do not hide early exits.
+- Record launch choices in every launch mode, plus attempt version/PID/script hashes.
+  v0.2.6 had removed the renderer message globally, including normal sessions.
+- Separate current stages, diagnostic snapshots and historical journals; list
+  previous attempts by path and collect bounded persistent crash reports.
+- Print the exact selftest evidence path after display restoration, even when
+  restoration creates a newer normal-session log. Preserve stop/restore behavior.
+- Regress delayed registration across multiple checks in all launch modes,
+  Welcome followed by exits 0/1/7 between polls, renderer evidence, crash report
+  mtimes and mixed historical evidence. CN/Gitee routing remains unchanged.
+- Both photographed attempts exited in about one second. The launcher lifecycle
+  and label defect are established; the physical Pad's inner compositor/watchdog
+  exit reason remains unproven. See [evidence and limits](docs/v0.2.7-validation.md).
+- Provenance: Codex **gpt-6-astra**; pi **xiaomi/mimo-v2.6-pro-ultraspeed**
+  analysis/review in `/tmp/mimo-logs/v027-analysis.log`,
+  `v027-analysis-addendum.log`, `v027-review.log`, `v027-review-final.log`,
+  `v027-review-release.log`, `v027-review-readme.log`;
+  Claude Code **claude-opus-5-5** review in
+  `/tmp/mimo-logs/v027-claude-review.log`. Raw local logs are not bundled.
+
 ## 0.2.6 — 2026-10-14
 
 - Make `arch-selftest` stop weston.socket before weston.service, wait for the

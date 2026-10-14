@@ -18,7 +18,10 @@ sudo journalctl -b -u systemd-machined --no-pager
 在 Linux Terminal 的文本标签页（或独立 SSH）直接运行 `~/.local/bin/arch-selftest`。
 它先停止 weston.socket 和 weston.service，关闭当前图形应用；有界等待锁/seat，前台测试并打印私有日志路径。
 完成、失败或收到可处理信号后重启 socket/service 恢复显示，无需手动停止服务；仍有活跃拥有者时报告 PID/命令并拒绝。
-详见 [自检与证据](v0.2.6-validation.md)。
+使用命令最后打印的确切路径，不要用 `ls -t` 选择最新文件：恢复服务会另建日志。
+v0.2.7 的 `launcher-status` 保留原始退出码；旧版 `registration-failed` 仅表示启动器已退出、Leader 从未被轮询观测到，不是 machined 错误。
+`stage=arch-hyprland` 记录实际启动选择，`auto` 表示未设置覆盖变量；旧 v0.2.6 本来就不打印该配置行。
+`history:` 是历史 journal；诊断块中的日志快照也可能早于本次启动。详见 [自检与证据](v0.2.7-validation.md)。
 
 ## Hyprland 无法启动
 
@@ -31,7 +34,7 @@ v0.2.4 不再固定 Virtual-1；连接器编号可能改变。Debian 宿主运�
 IPC 就绪不能证明像素已显示，请保留诊断进一步定位。
 v0.2.6 的日志优先记录容器命名空间、runtime 挂载、UID/权限、socket 列表和真正的 hyprland.log。
 VM 回溯已确认一种启动阻塞：Aquamarine 连接 weston.socket 的 wayland-0，等待无人响应的 Wayland 握手，
-尚未建立自己的命令 socket。直接 DRM 启动现在把父 WAYLAND_DISPLAY 设为 /dev/null 并清除 WAYLAND_SOCKET，
+尚未建立自己的命令 socket。直接 DRM 启动现在清除父 WAYLAND_DISPLAY/WAYLAND_SOCKET，并仅在容器内屏蔽宿主的 wayland-0 socket，
 使该可选连接立即失败；Hyprland 随后为客户端设置自己的有效 socket。不要把 /dev/null 加到客户端或全局环境。
 `ipc-wait` 的 socket absent 表示尚未建立命令 socket；存在 socket 但 probe 超时仍需日志判断启动进度，不能仅凭此断言 DRM hang。
 `(EE) could not connect to wayland server` 出现在清理阶段时可能是 Xwayland 的退出消息，不等于原始故障点。
@@ -176,3 +179,23 @@ hypr-switch debian
 会话证据保留最近 10 个文件，每个至多 8 MiB；超限保留近期输出并标记截断。
 独立 `arch-diag` 保留最近 10 份报告。请在重试多次前复制需要保留的证据。
 正常 Weston 回退之后的输出交给 journal；该次 Arch 失败证据仍保留在文件中。
+
+## 可选启动配置
+
+以下文件位于 **Debian 宿主**的 `~/.config/` 中。修改后完全关闭 Linux Terminal
+再重新打开显示，使配置生效。默认使用发行版 Hyprland 和已配置的 Debian Mesa，
+由 Mesa/DRM 自动选择驱动；`auto` 表示没有显式设置对应环境变量。
+
+| 文件 | 用法 |
+| --- | --- |
+| `arch-software-rendering` | 存在时强制 llvmpipe：`LIBGL_ALWAYS_SOFTWARE=1`、`GALLIUM_DRIVER=llvmpipe`。 |
+| `arch-no-modifiers` | 存在时设置 `AQ_NO_MODIFIERS=1`。 |
+| `arch-no-atomic` | 存在时设置 `AQ_NO_ATOMIC=1`，使用 legacy DRM；默认保留 atomic。 |
+| `arch-use-arch-mesa` | 存在时跳过 `/opt/debian-mesa`，使用 Arch Mesa。 |
+| `arch-hyprland-prefix` | 文件内容为容器内已有可信构建的绝对安装前缀，如 `/opt/hyprland-custom`；使用该前缀的 Hyprland、start-hyprland、hyprctl 和库。必须包含可执行的 Hyprland 和 start-hyprland。 |
+
+布尔开关用 `touch ~/.config/文件名` 启用，删除该文件撤销。
+自定义前缀不会下载任何二进制；删除 `arch-hyprland-prefix` 后恢复发行版启动器。
+旧 `arch-hardware-rendering` / `arch-enable-modifiers` 已无作用。
+`stage=arch-hyprland` 中的 `launch=` 是 watchdog 命令；`parent_mask=wayland-0`
+表示仅在容器内屏蔽宿主监听 socket，空值表示无需屏蔽。

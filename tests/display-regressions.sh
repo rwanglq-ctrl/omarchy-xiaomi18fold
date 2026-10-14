@@ -12,7 +12,7 @@ with tempfile.TemporaryDirectory(prefix='display-regressions-') as work:
     def script(name, text):
         p=mocks/name; p.write_text('#!/bin/sh\n'+text); p.chmod(0o755)
     for src in (root/'host/bin').iterdir():
-        text=src.read_text().replace('@USER@',os.environ.get('USER','tester')).replace('@UID@',str(os.getuid())).replace('@ROOTFS@',str(w/'rootfs'))
+        text=src.read_text().replace('@USER@',os.environ.get('USER','tester')).replace('@UID@',str(os.getuid())).replace('@ROOTFS@',str(w/'rootfs')).replace('@CHOME@',str(home))
         text=text.replace('/sys/class/drm',str(drm)).replace('/run/user/'+str(os.getuid()),str(runtime)).replace('@VERSION@',(root/'VERSION').read_text().strip())
         p=bins/src.name; p.write_text(text); p.chmod(0o755)
     script('sudo', '[ "$1" != -n ] || shift\n[ "$1" != test ] || exit 0\nexec "$@"\n')
@@ -25,7 +25,7 @@ kill|terminate) echo "$*" >> "$TEST_STATE/kills"; [ -f "$TEST_STATE/cleanup-fail
 while [ "$1" != /bin/sh ]; do shift; done
 exec "$@"
 ''')
-    script('stat', 'echo "$TEST_UID"\n')
+    script('stat', '[ "$1" != -c ] || [ "$2" != %u ] || { echo "$TEST_UID"; exit; }; exec /usr/bin/stat "$@"\n')
     script('readlink', '''case "$*" in *999*) echo /usr/bin/stale;; *) echo /usr/bin/Hyprland;; esac
 ''')
     script('hyprctl', r'''case "$*" in *monitors*) [ "$HYPRLAND_INSTANCE_SIGNATURE" = live ] || exit 92;; esac
@@ -125,6 +125,9 @@ esac
     p=subprocess.run([str(bins/'arch-output'),'--logs'],env=env,capture_output=True,text=True,check=True)
     assert 'DRM connector error' in p.stdout and 'old-5' in p.stdout and 'old-0' not in p.stdout
     assert p.stdout.count('--- ')==4,'log count is not bounded'
+    assert p.stdout.count('runtime-log snapshot (may predate this attempt)')==4
+    assert 'snapshot: old-5' in p.stdout and 'snapshot: DRM connector error' in p.stdout
+    assert 'snapshot modified: ' in p.stdout
 
     (mocks/'hyprctl').write_text(saved_ctl)
     (w/'machine').unlink()
@@ -152,11 +155,21 @@ case "$*" in *restart*|*stop*) exit 90;; esac
         assert subprocess.run([str(bins/'hypr-switch'),*args],env=env,capture_output=True).returncode==2
     # Real diagnostic collector: private output, no service mutation, tolerates
     # missing desktop and commands that fail.
-    script('journalctl', 'echo display-journal\n')
+    script('chroot', 'shift\nexec "$@"\n')
+    crashes=home/'.cache/hyprland'; crashes.mkdir(parents=True)
+    for i in range(3):
+        f=crashes/('hyprlandCrashReport'+str(i)+'.txt')
+        f.write_text('crash-fixture-'+str(i)+'\n'); os.utime(f,(100+i,100+i))
+    script('journalctl', 'echo display-journal\necho "stage=registration-failed historical-attempt"\necho "nsenter -t 2169 -a runuser /bin/sh -s -- Virtual-1"\n')
     p=subprocess.run([str(bins/'arch-diag')],env=env,check=True,capture_output=True,text=True)
     logs=list((home/'.local/state/omarchy-alarm').glob('arch-diag-*.log'))
     assert len(logs)==1 and logs[0].stat().st_mode&0o777==0o600
     assert 'No monitor report' in logs[0].read_text()
+    assert 'crash-fixture-2' in logs[0].read_text() and 'crash-fixture-1' in logs[0].read_text()
+    assert 'crash-fixture-0' not in logs[0].read_text()
+    for i in [1,2]:
+        stamp=subprocess.check_output(['/usr/bin/stat','-c','modified: %y',str(crashes/('hyprlandCrashReport'+str(i)+'.txt'))],text=True).strip()
+        assert stamp in logs[0].read_text()
     assert 'restart' not in (w/'systemctl').read_text()
     (w/'machine').touch()
     p=subprocess.run([str(bins/'arch-diag')],env=env,check=True,capture_output=True,text=True)
@@ -165,12 +178,17 @@ case "$*" in *restart*|*stop*) exit 90;; esac
     assert 'card0-Virtual-2/status: connected' in diagnostic
     assert 'Hyprland monitors all' in diagnostic and 'Virtual-2' in diagnostic
     (w/'machine').unlink()
-    # The private collector preserves earlier console output without a machine.
+    # Earlier attempts remain available by path, never recursively embedded as
+    # current stages. Old boot journal probes are explicitly historical.
     (w/'machine').unlink(missing_ok=True)
     prior=home/'.local/state/omarchy-alarm/arch-session-previous.log'
     prior.write_text('start-hyprland Window client early failure\n')
     p=subprocess.run([str(bins/'arch-diag'),'--stdout'],env=env,capture_output=True,text=True,check=True)
-    assert 'start-hyprland Window client early failure' in p.stdout
+    assert 'previous-attempt: '+str(prior) in p.stdout
+    assert 'start-hyprland Window client early failure' not in p.stdout
+    assert 'history: stage=registration-failed historical-attempt' in p.stdout
+    assert 'history: nsenter -t 2169 -a runuser /bin/sh -s -- Virtual-1' in p.stdout
+    assert not any(line.startswith('stage=') for line in p.stdout.splitlines())
     (w/'machine').touch()
     old_enter=(mocks/'nsenter').read_text()
     for failed in ['nsenter','runuser']:

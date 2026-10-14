@@ -330,3 +330,27 @@ Implementation/validation: Codex gpt-6-astra. See
 [gold differences and build decision](../docs/gold-alignment.md) and
 [validation](../docs/v0.2.6-validation.md). Physical Pad testing remains outstanding;
 custom 0.55 requiredness is unproven, and no unknown binary build is distributed.
+
+
+## v0.2.7 — 2026-10-14
+
+`tests/run.sh --full`: **12/12 PASS, 1084 seconds, exit 0**, with no skipped
+checks and ShellCheck 0.11.0. Official ALARM aarch64 image through QEMU user-mode;
+fresh rootfs core installation, real Hyprland/Qt/Quickshell assertions and
+second-run package/managed-file idempotence passed using unshare/chroot.
+Evidence: `/tmp/v027-evidence/full-suite-complete.log`.
+
+Tests cover repeated delayed registration in selftest/direct/service modes,
+Welcome followed by exit 0/1/7 between Leader observations, launch configuration
+and script hashes, restored-service log selection, snapshot/history separation,
+crash report ordering/mtimes, and README usage-only requirements. Native focused
+session/display/audit checks also passed. The baseline reproducer fails against
+v0.2.6's misleading registration-failed label. CN/Gitee regressions remain passing.
+
+Implementation/config/tool files and all tests except the README guard match
+the frozen suite source. Subsequent changes are Markdown review corrections
+and the README guard allowing exactly one troubleshooting link. Final audit
+checks cover missing/duplicate links, appended narrative and validation links;
+audit/privacy checks passed again on the release tree.
+See [v0.2.7 evidence and review dispositions](../docs/v0.2.7-validation.md).
+No physical Pad startup success or inner crash cause is claimed.

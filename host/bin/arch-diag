@@ -19,6 +19,19 @@ uname -srmo
 printf 'selected mode: '; cat "$HOME/.config/hypr-session-mode" 2>/dev/null || :
 echo '--- Hyprland namespace logs and sockets (before all other probes) ---'
 "$HOME/.local/bin/arch-output" --logs 2>&1 || echo 'namespace log probe failed'
+echo '--- persistent Hyprland crash reports (snapshots; compare modification time to this attempt) ---'
+bounded sudo -n chroot '@ROOTFS@' /bin/sh -c '
+  reports=$(find "$1/.cache/hyprland" -maxdepth 1 -type f -name "hyprlandCrashReport*.txt" -printf "%T@ %p\n" 2>/dev/null | sort -rn | head -2)
+  [ -n "$reports" ] || { echo "no Hyprland crash report found"; exit 0; }
+  while IFS= read -r entry; do
+    file=${entry#* }
+    printf "\n--- %s ---\n" "$file"
+    stat -c "modified: %y" "$file"
+    tail -c 65536 "$file"
+  done <<REPORTS
+$reports
+REPORTS
+' arch-crashes '@CHOME@'
 echo '--- machine identity (values withheld) ---'
 bounded sudo -n bash "$HOME/.local/bin/arch-machine-id" --check '@ROOTFS@'
 echo '--- display socket and service ---'
@@ -49,18 +62,17 @@ echo '--- container packages / user ---'
 echo '--- Omarchy shell log (persistent container file) ---'
 # A fixed file read, not a guest absolute symlink followed by the host.
 bounded sudo -n chroot '@ROOTFS@' /usr/bin/tail -c 131072 '@CHOME@/.local/state/omarchy/shell.log'
-echo '--- previous persistent launch evidence (last four attempts, 128KiB each) ---'
+echo '--- previous attempt paths only (not part of this launch; open separately) ---'
 while IFS= read -r entry; do
   file=${entry#* }
   [[ -f $file && ! -L $file && $file != "${OMARCHY_SESSION_LOG:-}" ]] || continue
-  printf '\n--- %s ---\n' "$file"
-  tail -c 131072 "$file"
+  printf 'previous-attempt: %s\n' "$file"
 done < <(find "$state" -maxdepth 1 -type f -name 'arch-session-*.log' -printf '%T@ %p\n' 2>/dev/null | sort -rn | head -4)
-echo '--- display journal (this boot, last 128KiB; full launch stream above) ---'
-bounded journalctl --user -b -u weston.service -u weston.socket --no-pager -o short-monotonic | tail -c 131072
-echo '--- machine/nspawn system journal (this boot, last 128KiB) ---'
-bounded sudo -n journalctl -b --no-pager -o short-monotonic -u systemd-machined.service -u machine-arch\\x2ddesktop.scope | tail -c 131072
-echo '--- machine journal (may be unavailable in a non-boot container) ---'
-bounded sudo -n journalctl -M arch-desktop -b --no-pager -o short-monotonic | tail -c 131072
+echo '--- historical display journal (this boot, last 128KiB; may include older versions/attempts) ---'
+bounded journalctl --user -b -u weston.service -u weston.socket --no-pager -o short-monotonic | tail -c 131072 | sed 's/^/history: /'
+echo '--- historical machine/nspawn system journal (this boot, last 128KiB) ---'
+bounded sudo -n journalctl -b --no-pager -o short-monotonic -u systemd-machined.service -u machine-arch\\x2ddesktop.scope | tail -c 131072 | sed 's/^/history: /'
+echo '--- historical machine journal (may be unavailable in a non-boot container) ---'
+bounded sudo -n journalctl -M arch-desktop -b --no-pager -o short-monotonic | tail -c 131072 | sed 's/^/history: /'
 echo '--- diagnostic snapshot complete ---'
 [[ -z ${log:-} ]] || printf 'Diagnostics saved (private file; inspect before sharing): %s\n' "$log" >&3

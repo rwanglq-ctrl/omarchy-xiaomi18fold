@@ -3,7 +3,7 @@
 set -euo pipefail
 ROOT=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 python3 - "$ROOT" <<'PY'
-import json,os,pathlib,signal,socket,subprocess,sys,tempfile,time
+import hashlib,json,os,pathlib,signal,socket,subprocess,sys,tempfile,time
 root=pathlib.Path(sys.argv[1]); uid=str(os.getuid())
 emulated=os.environ.get('ALARM_TEST_EMULATED')=='1'
 gate_seconds=8 if emulated else 2
@@ -41,7 +41,10 @@ case "$*" in
 *'stop weston.service'*)
  if [ -f "$TEST_STATE/socket-active" ]; then touch "$TEST_STATE/display-active"; else rm -f "$TEST_STATE/display-active"; fi;;
 *'restart weston.socket'*) touch "$TEST_STATE/socket-active";;
-*'restart weston.service'*) touch "$TEST_STATE/display-active";;
+*'restart weston.service'*) touch "$TEST_STATE/display-active"
+ if [ -f "$TEST_STATE/restore-log" ]; then
+   echo 'stage=session-start selftest=0 direct=0' > "$HOME/.local/state/omarchy-alarm/arch-session-restored.log"
+ fi;;
 *reset-failed*) exit 0;;
 *is-active*) [ ! -f "$TEST_STATE/display-active" ] || { echo active; exit 0; }; echo inactive; exit 3;;
 esac
@@ -54,7 +57,21 @@ list) if [ -f "$TEST_STATE/registry-transient" ]; then
  n=$(cat "$TEST_STATE/registry-transient"); echo $((n+1)) > "$TEST_STATE/registry-transient"; (( n >= 2 )) || exit 1
  fi
  [ ! -f "$TEST_STATE/registry-fails" ] || exit 1; [ ! -f "$TEST_STATE/machine" ] || echo 'arch-desktop container root'; exit 0;;
-show) [ -f "$TEST_STATE/machine" ] || exit 1; case "$*" in *Leader*) [ ! -f "$TEST_STATE/unknown-leader" ] || exit 1; cat "$TEST_STATE/machine";; esac;;
+show)
+ if [[ $* == *Leader* && -f $TEST_STATE/delayed-registration && ! -f $TEST_STATE/machine ]]; then
+   n=$(cat "$TEST_STATE/delayed-queries" 2>/dev/null || echo 0)
+   echo $((n+1)) > "$TEST_STATE/delayed-queries"
+   exit 1
+ fi
+ if [[ $* == *Leader* && -f $TEST_STATE/transient-exit ]]; then
+   touch "$TEST_STATE/leader-query-started"
+   for ((i=0; i<1000; i++)); do
+     [ ! -f "$TEST_STATE/launch-exited" ] || break
+     /bin/sleep .01
+   done
+   exit 1
+ fi
+ [ -f "$TEST_STATE/machine" ] || exit 1; case "$*" in *Leader*) [ ! -f "$TEST_STATE/unknown-leader" ] || exit 1; cat "$TEST_STATE/machine";; esac;;
 kill|terminate)
  echo "$*" >> "$TEST_STATE/kills"
  [ -f "$TEST_STATE/machine" ] || exit 0
@@ -72,6 +89,26 @@ esac
 printf '%s\n' "$@" > "$TEST_STATE/nspawn-args"
 echo 'Window client launch stderr evidence' >&2
 [ ! -f "$TEST_STATE/registration-fails" ] || exit 17
+if [ -f "$TEST_STATE/transient-exit" ]; then
+ for ((i=0; i<1000; i++)); do
+   [ ! -f "$TEST_STATE/leader-query-started" ] || break
+   /bin/sleep .01
+ done
+ echo $$ > "$TEST_STATE/machine"
+ echo 'stage=container-entry'; echo 'stage=start-hyprland'; echo 'Welcome to Hyprland!'
+ # Registration and startup happened, but neither poll observes the leader.
+ rm -f "$TEST_STATE/machine"
+ touch "$TEST_STATE/launch-exited"
+ exit "$(cat "$TEST_STATE/transient-exit")"
+fi
+if [ -f "$TEST_STATE/delayed-registration" ]; then
+ # Both the gate and arch-output must miss registration before it appears.
+ for ((i=0; i<1000; i++)); do
+   n=$(cat "$TEST_STATE/delayed-queries" 2>/dev/null || echo 0)
+   (( n < 4 )) || break
+   /bin/sleep .01
+ done
+fi
 echo $$ > "$TEST_STATE/machine"
 # Keep failed-cleanup registration even when the owner terminates its child.
 # Model stale machined state without leaking a process that holds test pipes.
@@ -130,7 +167,7 @@ if [[ -f $TEST_STATE/wall-clock-jump ]]; then
 fi
 ''', 1))
     state=home/'.local/state/omarchy-alarm'
-    flags=['sudo-fails','display-active','seat-busy','registry-fails','unknown-leader','cleanup-fails','registration-fails','needs-kill','early-exit','no-output','normal-exit','wall-clock-jump','registry-transient','slow-diag','socket-active','watchdog-restart','watchdog-gap']
+    flags=['sudo-fails','display-active','seat-busy','registry-fails','unknown-leader','cleanup-fails','registration-fails','needs-kill','early-exit','no-output','normal-exit','wall-clock-jump','registry-transient','slow-diag','socket-active','watchdog-restart','watchdog-gap','transient-exit','leader-query-started','launch-exited','restore-log','delayed-registration','delayed-queries']
     def reset(*enabled):
         for name in flags+['machine','ready','probed','kills','weston','diag-before-kill','nspawn-args','diag-started','systemctl','nsenter-args','hyprctl-args']:(w/name).unlink(missing_ok=True)
         for name in enabled:(w/name).touch()
@@ -165,6 +202,9 @@ fi
     reset(); rc,out,err,text,logs=run()
     assert rc==0 and len(logs)==1 and out.strip()==str(next(iter(logs))),(rc,out,err,text)
     assert 'stage=output-ready' in text and 'stage=selftest-ready' in text
+    assert 'version='+ (root/'VERSION').read_text().strip() in text
+    for component in ['hypr-session','arch-hyprland','arch-output','arch-diag','arch-selftest']:
+        assert hashlib.sha256((bins/component).read_bytes()).hexdigest()+'  '+str(bins/component) in text
     assert 'Window client launch stderr evidence' in text and 'Window client diagnostic evidence' in text
     assert text.index('snapshot complete')<text.index('stage=cleanup-begin')
     assert not (w/'machine').exists() and not (w/'weston').exists()
@@ -173,6 +213,16 @@ fi
         assert value in args,value
     for flag in ['LIBGL_ALWAYS_SOFTWARE','GALLIUM_DRIVER','AQ_NO_MODIFIERS','AQ_NO_ATOMIC','WAYLAND_DISPLAY']:
         assert '--setenv='+flag not in args
+    assert 'stage=arch-hyprland software=auto no_modifiers=auto no_atomic=auto mesa=arch' in text
+    for mode in [('--selftest',),('--direct',),()]:
+        reset('delayed-registration', *([] if mode==('--selftest',) else ['normal-exit']))
+        rc,out,err,text,logs=run(args=mode)
+        assert rc==(0 if mode==('--selftest',) else 7),(rc,text)
+        assert int((w/'delayed-queries').read_text())>=4
+        assert 'stage=registration-observed' in text and 'stage=output-ready' in text,text
+        assert 'stage=registration-failed' not in text and 'stage=gate-timeout' not in text,text
+        assert 'stage=arch-hyprland software=auto' in text,text
+    print('PASS delayed registration: repeated missing Leader then readiness in selftest/direct/service; launch choices logged',flush=True)
     # Reproduce the parent-display trap using a real listening UNIX socket.
     # An unset selector reaches the idle activation socket; the actual nspawn
     # environment must reject it before any Wayland roundtrip can block.
@@ -201,6 +251,7 @@ fi
     args=(w/'nspawn-args').read_text()
     for value in ['--setenv=LIBGL_ALWAYS_SOFTWARE=1','--setenv=AQ_NO_MODIFIERS=1','--setenv=AQ_NO_ATOMIC=1']:assert value in args
     assert '--setenv=GALLIUM_DRIVER=llvmpipe' in args
+    assert 'stage=arch-hyprland software=1 no_modifiers=1 no_atomic=1' in result[3]
     for knob in ['arch-software-rendering','arch-no-modifiers','arch-no-atomic']:(home/'.config'/knob).unlink()
     # Provisioned Mesa and an explicitly selected build use their own libraries
     # and matching watchdog, without modifying the packaged binaries.
@@ -209,6 +260,7 @@ fi
     args=(w/'nspawn-args').read_text()
     for value in ['LD_LIBRARY_PATH=/opt/debian-mesa/lib','GBM_BACKENDS_PATH=/opt/debian-mesa/lib/gbm','__EGL_VENDOR_LIBRARY_FILENAMES=/opt/debian-mesa/egl/50_debian_mesa.json']:
         assert '--setenv='+value in args
+    assert 'mesa=debian launch=/usr/bin/start-hyprland' in result[3]
     prefix=fs/'opt/hyprland-test/bin'; prefix.mkdir(parents=True)
     for name in ['Hyprland','start-hyprland']:
         (prefix/name).write_text('#!/bin/sh\n'); (prefix/name).chmod(0o755)
@@ -230,10 +282,22 @@ fi
     assert 'ipc-wait:' in result[3] and 'stage=output-ready' in result[3]
     assert '-i abandoned' not in (w/'hyprctl-args').read_text()
     old_event.close()
-    for flag,token in [('sudo-fails','sudo-needs-password'),('registration-fails','registration-failed'),('early-exit','stage=start-hyprland'),('no-output','gate-timeout')]:
+    for status in [0,1,7]:
+        reset(); (w/'transient-exit').write_text(str(status))
+        started=time.monotonic()
+        rc,out,err,text,logs=run()
+        assert rc==(status or 1),(rc,text)
+        assert 'Welcome to Hyprland!' in text and 'stage=launcher-exit' in text,text
+        assert 'status='+str(status)+' registration_observed=0 readiness=0' in text,text
+        assert 'stage=registration-failed' not in text and 'stage=gate-timeout' not in text,text
+        assert time.monotonic()-started < (6 if emulated else 2),text
+        assert not (w/'machine').exists() and not (w/'weston').exists()
+        assert text.index('stage=launcher-status') < text.index('stage=diagnostics-begin') < text.index('stage=cleanup-begin')
+    print('PASS transient registration: Welcome then exit 0/1/7 before Leader observation; raw status retained',flush=True)
+    for flag,token in [('sudo-fails','sudo-needs-password'),('registration-fails','launcher-exit'),('early-exit','stage=start-hyprland'),('no-output','gate-timeout')]:
         reset(flag); rc,out,err,text,logs=run()
         assert rc!=0 and token in text,(flag,rc,err,text)
-        if flag=='early-exit': assert rc==7 and ('stage=launcher-exit' in text or 'stage=registration-failed' in text)
+        if flag=='early-exit': assert rc==7 and 'stage=launcher-exit' in text
         assert len(logs)==1 and out.strip()==str(next(iter(logs)))
         assert not (w/'machine').exists() and not (w/'weston').exists()
     for name in ['udmabuf','dri','input','udev','seatd.sock']:
@@ -307,8 +371,19 @@ fi
         assert 'Virtual-' not in (w/'hyprctl-args').read_text()
     for flag in ['registration-fails','no-output','seat-busy']:
         reset(flag,'socket-active','display-active')
-        rc,_,err,text,_=run(args=('wrapper',))
+        rc,out,err,text,logs=run(args=('wrapper',))
         assert rc!=0 and (w/'socket-active').exists() and (w/'display-active').exists(),(flag,rc,err,text)
+        if flag=='seat-busy':
+            assert not out.strip() and not logs
+            assert 'no completed evidence path' in err and 'preflight/seat error above' in err
+    reset('restore-log','socket-active','display-active')
+    rc,out,err,text,logs=run(args=('wrapper',))
+    selected=pathlib.Path(out.strip())
+    newest=max(logs,key=lambda p:p.stat().st_mtime_ns)
+    assert rc==0 and 'selftest=1' in selected.read_text(),(rc,out,err)
+    assert newest.name=='arch-session-restored.log' and selected!=newest,(selected,newest)
+    assert 'selftest: exit=0' in err
+    assert [p.name for p in runtime.glob('omarchy-alarm-selftest.*')]==['omarchy-alarm-selftest.lock']
     for sig,code in [(signal.SIGTERM,143),(signal.SIGHUP,129),(signal.SIGINT,130),(signal.SIGUSR1,124)]:
         reset('socket-active','display-active')
         rc,_,err,text,_=run(args=('wrapper',),stop=sig)

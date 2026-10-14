@@ -74,5 +74,27 @@ esac
     readme=(root/'README.md').read_text();trouble=(root/'docs/troubleshooting.md').read_text()
     assert 'arch-selftest' in readme and '/run/user/UID/hypr/INSTANCE/hyprland.log' in trouble
     assert '/raw/v0.2.4/' not in readme and 'OMARCHY_ALARM_REF=v0.2.4' not in readme
+    # README is an installation/usage guide; investigations belong in docs.
+    narrative = r'根因|root cause|v0\.2\.\d+\s*修复|validation|investigation|blackscreen|启动诊断|复现|修复已确认|VM evidence|troubleshooting|故障排除|Provenance'
+    troubleshooting_link = '[故障排除 / Troubleshooting](docs/troubleshooting.md)'
+    def readme_usage_only(text):
+        lines = text.splitlines()
+        if lines.count(troubleshooting_link) != 1:
+            return False
+        body = '\n'.join(line for line in lines if line != troubleshooting_link)
+        targets = re.findall(r'\]\(\s*<?([^\s)>]+)|^\s{0,3}\[[^\]]+\]:\s*<?([^\s>]+)', body, re.M)
+        for inline, reference in targets:
+            target = inline or reference
+            if not re.match(r'https?://|#', target, re.I) or re.search(r'/(?:docs/|CHANGELOG(?:\.|/|$))', target, re.I):
+                return False
+        return not re.search(narrative, body, re.I)
+    assert readme_usage_only(readme), 'README allows exactly one troubleshooting link; move history to CHANGELOG or docs'
+    assert not readme_usage_only(readme.replace(troubleshooting_link, ''))
+    assert not readme_usage_only(readme + '\n' + troubleshooting_link)
+    assert not readme_usage_only(readme.replace(troubleshooting_link, troubleshooting_link + ' root cause'))
+    for forbidden in ['根因', 'root cause', 'v0.2.7 修复', '[validation](docs/v0.2.7-validation.md)', '[notes](docs/history.md)', '[notes](./docs/history.md)', '[notes](CHANGELOG.md)', '[notes](https://github.com/example/repo/blob/main/docs/history.md)', '[notes]: docs/history.md']:
+        assert not readme_usage_only(readme + '\n' + forbidden), forbidden
+    for instruction in ['MIRROR=cn', 'gitee.com/', 'OMARCHY_ALARM_REF=main', 'Resume', 'hypr-switch arch', 'hypr-switch debian', '~/.local/bin/arch-selftest', '## 卸载', '## 已知限制']:
+        assert instruction in readme, instruction
 print('PASS audit: sudo bootstrap ordering/tokens, signature policy, version rendering, docs')
 PY
