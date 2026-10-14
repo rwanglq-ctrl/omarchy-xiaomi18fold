@@ -72,3 +72,40 @@ The simulation covers DNS and installer logic; Android display hardware and a
 live nested nspawn session are outside this test. nspawn argv and stdin are
 covered by regression mocks. MIMO investigation, test authoring, mutation checks
 and reviews are recorded in `/tmp/mimo-logs/01-*.log` through `06-*.log`.
+
+
+## v0.2.3 — 2026-10-13
+
+`tests/run.sh --full` passed all twelve checks, with ShellCheck present, in
+858 seconds (exit 0) inside a disposable ALARM arm64 rootfs under QEMU on
+x86_64. This included real core installation, Hyprland configuration verification
+and second-run package/config/mode/symlink idempotence. The runtime packages
+were Hyprland 0.56.2-4 and Aquamarine 0.15.1-1. `unshare` plus chroot passed
+the isolation probe; nspawn failed its QEMU namespace clone and was not used.
+
+The rootless test runner needed credential-preserving binfmt `POCF` in its own
+Docker user namespace (the host registration remained `PF`) and
+`ALARM_TEST_EMULATED=1` to disable unsupported Landlock in only the fresh
+disposable test rootfs. Initial runs exposed these environment limitations;
+the final run used real ALARM sudo and real installation commands, not a sudo
+stub. The fresh rootfs and runner were removed after testing.
+
+The final display regressions passed both natively and under arm64 emulation,
+including the final stateful previous-leader and real-probe regression added
+after the full run. This host-script-only addition does not change container installation.
+Native Hyprland 0.56.2 accepted both minimal and complete Lua configs. A device-
+isolated launch with no DRM/parent Wayland aborted at CBackend::create()
+(exit 134); this did not reproduce the Pad's black screen. Read-only observation
+of an existing real 0.56.2 FALLBACK monitor (DPMS off) was correctly rejected.
+Actual Android virtio_gpu scanout remains untested; see the
+[investigation](../docs/blackscreen-v0.2.3.md).
+
+Release workstation evidence:
+
+- `/tmp/v023-final-full.log`: twelve PASS rows, integration/idempotence, exit 0.
+- `/tmp/v023-display-tests.log` and `/tmp/v023-arm-display-tests.log`: final
+  focused behavioral regressions, including previous-container leader filtering.
+- `/tmp/v023-full-config.log`: real 0.56.2 full Lua verification.
+- `/tmp/v023-repro/headless.log`: failed isolated headless attempt.
+- `/tmp/mimo-logs/blackscreen-analysis.log`, `blackscreen-drafting.log`,
+  `blackscreen-review.log`: MIMO prompts, retries, analysis, drafting and reviews.

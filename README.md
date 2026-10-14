@@ -54,7 +54,7 @@
    整个过程需要下载数 GB 的软件包，耗时取决于网速。
 6. **切换到 Omarchy 桌面**：运行 `hypr-switch arch`，然后点击终端顶部的
    「显示」按钮（显示器图标）打开图形界面，就会进入 Arch 容器里的 Hyprland / Omarchy。
-   以后想回到 Debian 图形会话，运行 `hypr-switch debian --now`。
+   以后想回到 Debian 图形会话，运行 `hypr-switch debian`。
 
 ## 一键安装
 
@@ -64,21 +64,19 @@ curl -fsSL https://raw.githubusercontent.com/rwanglq-ctrl/omarchy-xiaomipad9pm/m
 
 ### 国内网络安装
 
-GitHub 版本：`0.2.2`。以下 Gitee 命令需等待镜像同步本次发布（含 vendor/）；同步前请使用下一段的 v0.2.2 命令或本地源码：
+发布版本：`0.2.3`；GitHub 与 Gitee 均发布相同源码（含 vendor/）。
 
 ```bash
-curl -fsSL https://gitee.com/zenbardofsuhe/omarchy-xiaomipad9pm/raw/main/install.sh | MIRROR=cn bash -s -- --profile core
+curl -fsSL https://gitee.com/zenbardofsuhe/omarchy-xiaomipad9pm/raw/v0.2.3/install.sh | MIRROR=cn OMARCHY_ALARM_REF=v0.2.3 bash -s -- --profile core
 ```
 
 **Resume on Pad（失败后继续）**：在 Debian 宿主终端重新运行以下命令。安装器会复用现有 Arch 容器和校验通过的 rootfs 缓存，保留未完成下载的 `.part` 文件；先修复容器 DNS 再继续 pacman。使用相同的用户和 `--rootfs` 参数（如曾指定）。
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/rwanglq-ctrl/omarchy-xiaomipad9pm/v0.2.2/install.sh | MIRROR=cn OMARCHY_ALARM_REPO=https://github.com/rwanglq-ctrl/omarchy-xiaomipad9pm OMARCHY_ALARM_REF=v0.2.2 bash -s -- --profile core
+curl -fsSL https://gitee.com/zenbardofsuhe/omarchy-xiaomipad9pm/raw/v0.2.3/install.sh | MIRROR=cn OMARCHY_ALARM_REPO=https://gitee.com/zenbardofsuhe/omarchy-xiaomipad9pm OMARCHY_ALARM_REF=v0.2.3 bash -s -- --profile core
 ```
 
 Pad 切换网络后若容器 DNS 再次失败，重跑相同安装命令可刷新宿主上游 DNS。
-
-本次发布仅推送 GitHub；Gitee 同步到 v0.2.2 后，可重新运行上面的国内一行命令。GitHub 无法访问时，请先将 v0.2.2 源码复制到 Pad，再运行 `MIRROR=cn bash ./install.sh --profile core`。
 
 或先克隆再安装：
 
@@ -131,14 +129,45 @@ cd omarchy-xiaomipad9pm
 安装完成后，默认会话为 Debian 桌面。切换到 Arch 容器的 Hyprland：
 
 ```bash
-hypr-switch arch --now
+hypr-switch arch
 ```
 
 切回 Debian：
 
 ```bash
-hypr-switch debian --now
+hypr-switch debian
 ```
+
+### v0.2.3 黑屏修复 / Safe Pad update
+
+在 **Debian 宿主**的普通终端运行上面的 v0.2.3 国内 Resume 命令。
+无需删除容器或 rootfs 缓存；已有配置会由安装器更新。安装器不会重启显示服务。
+当前 shell 立即补上 PATH：`export PATH="$HOME/.local/bin:$PATH"`；后续 bash 会话自动生效。
+
+安全测试：`~/.local/bin/hypr-switch arch`，关闭再重新打开 Terminal 的「显示」窗口。
+不要在正在使用的图形终端内手动重启 weston.service。`--now` 现仅保存选择并提示延后；
+任何 shell 都不会因此重启服务，因为 Android 的 shell 无法可靠判定是否属于显示窗口。
+没有活动 Virtual-1 输出时，启动探测 30 秒后会保存诊断、停止 Arch 容器并回到 Weston
+（诊断和清理通常需数秒，超时路径可能再需约 40 秒）。IPC 有活动输出不代表像素已正确显示；若仍黑屏，使用独立的
+Debian 文本终端运行 `~/.local/bin/arch-diag`，然后 `~/.local/bin/hypr-switch debian`，
+关闭再打开「显示」。仅在独立 SSH 连接里、接受显示及应用关闭时，才手动运行
+`systemctl --user restart weston.service` 进行恢复。
+
+`arch-diag` 是只读命令，打印私有日志路径 `~/.local/state/omarchy-alarm/arch-diag-*.log`，
+不启动容器、不重启服务、不转储环境变量。日志可能包含应用命令或路径，分享前请检查。
+`arch-output` 只查询运行中的 arch-desktop，成功时输出监视器 JSON；失败返回非零。
+
+默认在 nspawn 启动前设置 `LIBGL_ALWAYS_SOFTWARE=1`、`GALLIUM_DRIVER=llvmpipe`、
+`AQ_NO_MODIFIERS=1`，Lua 明确启用 Virtual-1 并关闭硬件光标。
+以下文件在宿主的 `~/.config/` 中生效，修改后需重新打开显示：
+
+- `touch ~/.config/arch-no-atomic`：可选的 legacy DRM 诊断尝试；默认保留 atomic，
+  上游不推荐 legacy，未证明它能修复本设备。撤销：`rm ~/.config/arch-no-atomic`。
+- `arch-hardware-rendering`：存在时关闭强制软件渲染，仅供确认有硬件加速的环境。
+- `arch-enable-modifiers`：存在时重新启用 DRM modifiers。
+- `arch-use-arch-mesa`：存在时跳过可选 Debian Mesa；未安装 `/opt/debian-mesa` 无需处理。
+
+根因证据和复现范围见 [display investigation](docs/blackscreen-v0.2.3.md)。
 
 ## 已知限制
 
@@ -158,7 +187,7 @@ sudo machinectl terminate arch-desktop 2>/dev/null || true
 sudo rm -rf /var/lib/machines/arch
 
 # 删除宿主启动器
-rm ~/.local/bin/{arch-hyprland,archbox,archsh,hypr-switch,hypr-session}
+rm ~/.local/bin/{arch-hyprland,archbox,archsh,hypr-switch,hypr-session,arch-output,arch-diag}
 
 # 删除 systemd drop-in（如已安装）
 rm ~/.config/systemd/user/weston.service.d/hyprland.conf
@@ -220,7 +249,7 @@ Menu names follow HyperOS (Android 16) and may differ slightly between versions.
 5. **Run the one-command installer** below. It prepares the Debian host, then downloads and configures
    the Arch Linux ARM container; expect several GB of downloads.
 6. **Switch to the Omarchy desktop**: run `hypr-switch arch`, then tap the Terminal's *Display* button
-   (monitor icon). To go back to Debian's session later: `hypr-switch debian --now`.
+   (monitor icon). To go back to Debian's session later: `hypr-switch debian`.
 
 ### One-command install
 

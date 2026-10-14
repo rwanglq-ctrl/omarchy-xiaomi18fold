@@ -36,6 +36,14 @@ sudo -n chmod 755 "$rootfs"
 sudo -n mkdir -p "$rootfs/dev" "$rootfs/proc" "$rootfs/sys" "$rootfs/src"
 sudo -n rm -f "$rootfs/etc/resolv.conf"
 sudo -n cp -L /etc/resolv.conf "$rootfs/etc/resolv.conf"
+# QEMU user-mode does not implement Landlock. This is only the fresh disposable
+# test rootfs; never relax the installed Pad's pacman configuration.
+if [[ ${ALARM_TEST_EMULATED:-0} == 1 ]]; then
+  echo 'Emulated test: disabling pacman Landlock in the disposable rootfs'
+  if ! sudo -n grep -q '^DisableSandbox' "$rootfs/etc/pacman.conf"; then
+    sudo -n sed -i '/^\[options\]/a DisableSandbox' "$rootfs/etc/pacman.conf"
+  fi
+fi
 # All bind mounts live in a private mount namespace and vanish when it exits.
 cat > "$CACHE/unshare-run.sh" <<'SH'
 #!/usr/bin/env bash

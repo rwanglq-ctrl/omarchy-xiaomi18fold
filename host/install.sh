@@ -26,7 +26,7 @@ ALARM_KEY="68B3 537F 39A3 13B3 E574  D067 7719 3F15 2BDB E6A6"
 ALARM_KEY=${ALARM_KEY// /}
 CACHE_DIR=${OMARCHY_ALARM_CACHE:-/var/cache/omarchy-alarm-nspawn}
 DEFAULT_HOME_BINDS="Downloads Pictures Videos Work"
-LAUNCHERS=(arch-hyprland archbox archsh hypr-switch hypr-session)
+LAUNCHERS=(arch-hyprland archbox archsh hypr-switch hypr-session arch-output arch-diag)
 APT_PACKAGES=(systemd-container seatd curl ca-certificates libarchive-tools sudo)
 MACHINE=arch-desktop
 
@@ -507,6 +507,26 @@ ensure_user_dir "$T_HOME/.local/bin"
 for name in "${LAUNCHERS[@]}"; do
   install_user_file "$RENDERED/bin/$name" "$T_HOME/.local/bin/$name" 755
 done
+# Put the PATH block first: Debian's .bashrc may return before its last line.
+for rc in .bashrc .profile; do
+  rcfile="$T_HOME/$rc"
+  if [[ -f $rcfile ]] && grep -q '^# BEGIN omarchy-alarm-nspawn PATH$' "$rcfile"; then
+    continue
+  fi
+  {
+    cat <<'PATHBLOCK'
+# BEGIN omarchy-alarm-nspawn PATH
+case ":$PATH:" in
+  *":$HOME/.local/bin:"*) ;;
+  *) export PATH="$HOME/.local/bin:$PATH" ;;
+esac
+# END omarchy-alarm-nspawn PATH
+
+PATHBLOCK
+    [[ ! -f $rcfile ]] || cat "$rcfile"
+  } > "$RENDERED/$rc"
+  install_user_file "$RENDERED/$rc" "$rcfile" 644
+done
 (( DRY_RUN )) && note "preview the rendered files with: host/install.sh --render-only DIR --user $TARGET_USER --rootfs $ROOTFS"
 
 # --- 7. display hook -------------------------------------------------------------------
@@ -536,4 +556,4 @@ fi
 
 log "host side done"
 note "enter the container:      archbox        (shell in the running desktop: archsh)"
-note "use the Arch desktop:     hypr-switch arch --now   (back: hypr-switch debian --now)"
+note "use the Arch desktop:     hypr-switch arch; reopen display (back: hypr-switch debian)"

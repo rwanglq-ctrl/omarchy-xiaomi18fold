@@ -1,13 +1,18 @@
 #!/bin/sh
 # Installed by omarchy-alarm-nspawn (host/install.sh).
-# Choose which desktop the Android Terminal display starts: hypr-switch arch|debian [--now]
-# --now restarts the desktop immediately (closes all open windows).
+# Select the next display session. Restarting weston can kill Android Terminal itself.
 case "$1" in
   arch|debian) ;;
-  *) echo "usage: hypr-switch arch|debian [--now]   (current: $(cat "$HOME/.config/hypr-session-mode" 2>/dev/null || echo debian))" >&2; exit 2 ;;
+  *) echo "usage: hypr-switch arch|debian [--now]" >&2; exit 2 ;;
 esac
+case "$#:$2" in 1:|2:--now) ;; *) echo "usage: hypr-switch arch|debian [--now]" >&2; exit 2 ;; esac
 mkdir -p "$HOME/.config"
-echo "$1" > "$HOME/.config/hypr-session-mode"
+modefile=$(mktemp "$HOME/.config/hypr-session-mode.XXXXXXXX") || exit 1
+trap 'rm -f "$modefile"' 0
+trap 'exit 1' HUP INT TERM
+printf '%s\n' "$1" > "$modefile" && mv -f "$modefile" "$HOME/.config/hypr-session-mode" || exit 1
 echo "next desktop start: $1"
-[ "$2" = --now ] && systemctl --user restart weston.service
+if [ "$2" = --now ]; then
+  echo "hypr-switch: --now deferred: restarting weston.service can close the Android Terminal app. Close/reopen its display to apply; use an independent SSH shell for recovery." >&2
+fi
 exit 0

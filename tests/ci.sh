@@ -13,9 +13,11 @@ export MIRROR=global
 network_select_alarm
 network_download_rootfs "$CACHE/rootfs.tar.gz"
 docker import --platform linux/arm64 "$CACHE/rootfs.tar.gz" omarchy-alarm-test:local >/dev/null
+emulated=0
+[[ $(uname -m) == aarch64 ]] || emulated=1
 quick_budget=${ALARM_TEST_QUICK_BUDGET:-115}
 if [[ $(uname -m) != aarch64 && -z ${ALARM_TEST_QUICK_BUDGET:-} ]]; then quick_budget=600; fi
-args=(--rm --env ALARM_TEST_QUICK_BUDGET="$quick_budget" --platform linux/arm64 --network host --volume "$ROOT:/src:ro" --workdir /src)
+args=(--rm --env ALARM_TEST_EMULATED="$emulated" --env ALARM_TEST_QUICK_BUDGET="$quick_budget" --platform linux/arm64 --network host --volume "$ROOT:/src:ro" --workdir /src)
 # The full suite needs nested namespaces/mounts. Quick receives no privilege.
 if [[ $mode == --full ]]; then args+=(--privileged); fi
 docker run "${args[@]}" omarchy-alarm-test:local /bin/bash -euc '
@@ -35,5 +37,5 @@ docker run "${args[@]}" omarchy-alarm-test:local /bin/bash -euc '
   install -d -o tester -g tester "$cache"
   curl -fL --retry 3 https://github.com/koalaman/shellcheck/releases/download/v0.11.0/shellcheck-v0.11.0.linux.aarch64.tar.xz -o "$cache/shellcheck.tar.xz"
   tar -xJf "$cache/shellcheck.tar.xz" -C "$cache"
-  runuser -u tester -- env HOME="$test_home" ALARM_TEST_QUICK_BUDGET="$ALARM_TEST_QUICK_BUDGET" bash /src/tests/run.sh "$1"
+  runuser -u tester -- env HOME="$test_home" ALARM_TEST_EMULATED="$ALARM_TEST_EMULATED" ALARM_TEST_QUICK_BUDGET="$ALARM_TEST_QUICK_BUDGET" bash /src/tests/run.sh "$1"
 ' bash "$mode"

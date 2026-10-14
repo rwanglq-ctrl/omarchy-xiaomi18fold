@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.2.3 — 2026-10-13
+
+- Set software llvmpipe and linear DRM buffer defaults before nspawn launch;
+  retain atomic modesetting with an opt-in legacy diagnostic knob.
+- Explicitly enable Virtual-1 in Lua and disable hardware cursors.
+- Detect alive-but-no-output startup via bounded, namespace-local hyprctl IPC;
+  reject a leftover container leader, save private diagnostics and stop the
+  container before Weston recovery.
+- Add read-only arch-diag and arch-output helpers; defer hypr-switch --now
+  to protect the Android Terminal UI. Add host bashrc/profile local-bin PATH.
+- Correct CN resume to pinned Gitee URLs and document safe update/recovery.
+- Support full QEMU integration by disabling Landlock only in disposable test rootfs.
+- Add behavioral display regressions and record upstream analysis and
+  reproduction limits.
+
 ## 0.2.2 — 2026-10-13
 
 - Repair container DNS before pacman: replace rootfs resolver symlinks, read host

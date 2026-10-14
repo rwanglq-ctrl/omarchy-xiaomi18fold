@@ -38,7 +38,7 @@ its published MD5, extracts a fresh copy below the test cache, probes nspawn,
 unshare plus chroot, then bwrap in order, and uses the first successful method.
 The documented official HTTP download and MD5 provide transfer integrity, not
 authenticity. The HTTPS alias currently fails hostname certificate verification;
-we never disable TLS verification. Full tests require native aarch64,
+we never disable TLS verification. Full tests require an aarch64 environment,
 noninteractive sudo and sufficient disk space (allow tens of GB).
 
 `tests/full.sh --probe-only` proves isolation by running `pacman -Q` inside that
@@ -82,3 +82,17 @@ installer stdin and resume behavior, including interrupted atomic extraction.
 It is included in quick checks. The CN
 Docker/QEMU simulation also resolves a mirror using the real ALARM `getent`
 with a synthetic `127.0.0.53` host resolver and checks cached rootfs reuse.
+
+`bash tests/display-regressions.sh` exercises output readiness, stale-instance
+filtering, IPC timeouts, fallback and failed cleanup, stop signals, safe deferred
+switching, private diagnostics, renderer flags/opt-outs and interactive PATH with
+offline mocks. It is included in quick and full checks. Mock recovery is not
+evidence of visible frames on Android virtio_gpu; see
+[display investigation](../docs/blackscreen-v0.2.3.md).
+
+For QEMU user-mode full tests, `ALARM_TEST_EMULATED=1` disables pacman Landlock
+only in the freshly extracted disposable rootfs (QEMU does not implement those
+syscalls). `tests/ci.sh` sets it automatically on non-aarch64 hosts. QEMU binfmt must also
+preserve credentials (`C` flag) for the real ALARM sudo binary; in rootless Docker
+this can be registered in the disposable daemon user namespace without changing
+the host registration. Native runs leave the fresh rootfs sandbox setting alone.

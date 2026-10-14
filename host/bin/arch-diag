@@ -1,0 +1,42 @@
+#!/bin/sh
+# Installed by omarchy-alarm-nspawn (host/install.sh); @PLACEHOLDERS@ filled at install.
+# Read-only, bounded diagnostics. No restarts, fallback shells, or environment dumps.
+umask 077
+outdir="$HOME/.local/state/omarchy-alarm"
+mkdir -p "$outdir" || exit 1
+log=$(mktemp "$outdir/arch-diag-XXXXXXXX.log") || exit 1
+{
+  echo 'omarchy-alarm-nspawn v0.2.3 display diagnostics'
+  date -u
+  uname -srmo
+  printf 'selected mode: '; cat "$HOME/.config/hypr-session-mode" 2>/dev/null || :
+  echo '--- display service ---'
+  timeout 3 systemctl --user show weston.service -p ActiveState -p SubState -p MainPID 2>&1 || :
+  echo '--- DRM / seat / udmabuf ---'
+  ls -l /dev/dri /dev/udmabuf /run/seatd.sock 2>&1 || :
+  for f in /sys/class/drm/card*-*/status; do
+    [ -r "$f" ] || continue
+    printf '%s: ' "$f"; cat "$f"
+  done
+  echo '--- desktop machine ---'
+  timeout 3 machinectl show arch-desktop -p Leader -p State 2>&1 || :
+  echo '--- launcher knobs ---'
+  for knob in arch-hardware-rendering arch-enable-modifiers arch-no-atomic arch-use-arch-mesa; do
+    [ ! -e "$HOME/.config/$knob" ] || printf '%s enabled\n' "$knob"
+  done
+  echo '--- container packages ---'
+  "$HOME/.local/bin/arch-output" --info 2>&1 || :
+  echo '--- DRM driver ---'
+  for f in /sys/class/drm/card*/device/uevent; do
+    [ -r "$f" ] || continue
+    printf '%s: ' "$f"; sed -n 's/^DRIVER=/driver=/p' "$f"
+  done
+  echo '--- active output ---'
+  "$HOME/.local/bin/arch-output" --summary 2>&1 || echo 'No usable Virtual-1 output / probe failed'
+  echo '--- Hyprland log (last 128KiB, live container only) ---'
+  "$HOME/.local/bin/arch-output" --logs 2>&1 |
+    sed '/[Ww]indow/d; /[Tt]itle/d; /[Cc]lient/d' || :
+  echo '--- display journal (last 150 entries) ---'
+  timeout 3 journalctl --user -u weston.service -n 150 --no-pager -o short-monotonic 2>&1 || :
+} > "$log"
+printf 'Diagnostics saved (private file; inspect before sharing): %s\n' "$log"

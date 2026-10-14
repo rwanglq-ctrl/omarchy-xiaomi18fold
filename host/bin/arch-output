@@ -1,0 +1,62 @@
+#!/bin/sh
+# Installed by omarchy-alarm-nspawn (host/install.sh); @PLACEHOLDERS@ filled at install.
+# Query only the already-running desktop; never start archbox or another compositor.
+# --logs: compositor log; --info: packages; --summary: monitor fields without names
+# of workspaces; default: active Virtual-1 monitor JSON on success.
+mode=${1:-}
+excluded=''
+case "$mode" in
+  --exclude-leader)
+    [ "$#" = 2 ] || exit 2
+    excluded=$2; mode=''
+    case "$excluded" in *[!0-9]*) exit 2 ;; esac ;;
+  ''|--logs|--info|--summary) [ "$#" -le 1 ] || exit 2 ;;
+  *) exit 2 ;;
+esac
+leader=$(timeout 2 machinectl show arch-desktop -p Leader --value 2>/dev/null) || exit 1
+case "$leader" in ''|*[!0-9]*) exit 1 ;; esac
+[ "$leader" -gt 1 ] || exit 1
+# An old, still-live desktop must not satisfy the new session's startup gate.
+[ "$leader" != "$excluded" ] || exit 1
+exec timeout --kill-after=1 3 sudo -n nsenter -t "$leader" -a \
+  runuser -u '@USER@' -- env XDG_RUNTIME_DIR=/run/user/@UID@ \
+  /bin/sh -s -- "$mode" <<'INSIDE'
+unset HYPRLAND_INSTANCE_SIGNATURE
+set -f
+if [ "$1" = --info ]; then
+  pacman -Q hyprland aquamarine mesa 2>&1
+  exit
+fi
+# Instances may include stale shared runtime sockets. Check PID, executable and UID
+# in the desktop's PID namespace before connecting; do not trust the host's instance.
+instances=$(hyprctl -j instances 2>/dev/null | jq -r '.[] |
+  select((.pid | type) == "number" and (.instance | type) == "string") |
+  "\(.pid):\(.instance)"')
+for entry in $instances; do
+  pid=${entry%%:*}; signature=${entry#*:}
+  case "$pid" in ''|*[!0-9]*) continue ;; esac
+  case "$signature" in ''|*[!A-Za-z0-9_]*) continue ;; esac
+  [ "$(stat -c %u "/proc/$pid" 2>/dev/null)" = '@UID@' ] || continue
+  [ "$(basename "$(readlink "/proc/$pid/exe" 2>/dev/null)")" = Hyprland ] || continue
+  if [ "$1" = --logs ]; then
+    tail -c 131072 "$XDG_RUNTIME_DIR/hypr/$signature/hyprland.log" 2>/dev/null
+    continue
+  fi
+  monitors=$(hyprctl -i "$signature" -j monitors 2>/dev/null) || continue
+  if [ "$1" = --summary ]; then
+    # Diagnostics must preserve inactive/empty outputs too, without client names.
+    printf '%s\n' "$monitors" | jq -e 'if type == "array" then
+      map({name, width, height, refreshRate, dpmsStatus, disabled}) else error("invalid monitor report") end' && exit 0
+    continue
+  fi
+  if printf '%s\n' "$monitors" | jq -e 'type == "array" and any(.[];
+    .name == "Virtual-1" and (.width | type) == "number" and
+    (.height | type) == "number" and .width > 0 and .height > 0 and
+    .dpmsStatus == true and (.disabled != true) and (.fallback != true))' >/dev/null 2>&1; then
+    printf '%s\n' "$monitors"
+    exit 0
+  fi
+done
+[ "$1" = --logs ] && exit 0
+exit 1
+INSIDE
