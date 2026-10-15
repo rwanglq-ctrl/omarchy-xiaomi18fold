@@ -1,9 +1,5 @@
 # aur-full; full files are additive to core.
-aether
-cliamp
 feishu-bin
 goldendict-ng
-omawrite
-tensaku
 ttf-lxgw-wenkai
 wechat-bin

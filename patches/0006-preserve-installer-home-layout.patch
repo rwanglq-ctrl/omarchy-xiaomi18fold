@@ -1,0 +1,32 @@
+From 2fdc68fc2efc0102abff14e01b5a15ec8c1d9970 Mon Sep 17 00:00:00 2001
+From: omarchy-alarm-nspawn <noreply@example.com>
+Date: Thu, 15 Oct 2026 10:00:00 +0000
+Subject: [PATCH] Preserve installer home layout and existing XDG preferences
+
+The ARM installer creates missing home directories without replacing files.
+Do not reset XDG preferences or remove those directories in provisioning.
+
+---
+ bin/omarchy-provision-user | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/bin/omarchy-provision-user b/bin/omarchy-provision-user
+--- a/bin/omarchy-provision-user
++++ b/bin/omarchy-provision-user
+@@ -105,10 +105,14 @@ done
+ fi
+ 
++if [[ ${OMARCHY_PROGRAMS_ONLY:-0} != 1 ]]; then
+ mkdir -p ~/Downloads ~/Pictures ~/Videos ~/.config/gtk-3.0
+ xdg-user-dirs-update --set TEMPLATES "$HOME"
+ xdg-user-dirs-update --set PUBLICSHARE "$HOME"
+ xdg-user-dirs-update --set DESKTOP "$HOME"
+ rmdir ~/Templates ~/Public ~/Desktop 2>/dev/null || true
++fi
++# Keep GTK bookmarks available without touching installer-managed user dirs.
++mkdir -p ~/.config/gtk-3.0
+ touch ~/.config/gtk-3.0/bookmarks
+ for dir in Downloads Projects Pictures Videos; do
+   bookmark="file://$HOME/$dir $dir"
+-- 
+2.55.0

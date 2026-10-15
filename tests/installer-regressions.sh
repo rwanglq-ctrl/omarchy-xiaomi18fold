@@ -27,6 +27,7 @@
 # outside the mktemp work directory is touched. Run: bash tests/installer-regressions.sh
 set -euo pipefail
 ROOT=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+bash "$ROOT/tests/home-layout-regressions.sh"
 [[ -f $ROOT/lib/network.sh ]] || { echo "Missing target/tool: lib/network.sh"; exit 1; }
 # shellcheck source=../lib/network.sh
 source "$ROOT/lib/network.sh"

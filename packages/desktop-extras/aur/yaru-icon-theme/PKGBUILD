@@ -1,0 +1,26 @@
+# Omarchy ARM recipe based on upstream ubuntu/yaru's documented Meson build.
+# Icons are architecture-independent; upstream includes rendered icon assets.
+pkgname=yaru-icon-theme
+pkgver=26.10.3
+pkgrel=1
+pkgdesc='Ubuntu Yaru icons and cursors'
+arch=('any')
+url='https://github.com/ubuntu/yaru'
+license=('CC-BY-SA-4.0' 'GPL-3.0-only')
+depends=('hicolor-icon-theme')
+makedepends=('meson' 'ninja' 'sassc' 'python')
+source=("yaru-${pkgver}.tar.gz::https://github.com/ubuntu/yaru/archive/refs/tags/${pkgver}.tar.gz")
+sha256sums=('ac396932559dd1b515ee4d94d470093dfac407027d9609e756299df9e06c3f7b')
+
+build() {
+  meson setup "yaru-${pkgver}" build --prefix=/usr \
+    -Dicons=true -Dgnome-shell=false -Dgtk=false -Dgtksourceview=false \
+    -Dmetacity=false -Dsounds=false -Dsessions=false
+  meson compile -C build
+}
+
+package() {
+  DESTDIR="$pkgdir" meson install -C build --no-rebuild
+  install -Dm644 "yaru-${pkgver}/LICENSE_CCBYSA" \
+    "$pkgdir/usr/share/licenses/$pkgname/LICENSE_CCBYSA"
+}

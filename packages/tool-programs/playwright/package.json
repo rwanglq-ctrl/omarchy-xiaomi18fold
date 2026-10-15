@@ -1,0 +1,8 @@
+{
+  "name": "omarchy-pad-playwright-program",
+  "version": "0.2.9",
+  "private": true,
+  "dependencies": {
+    "playwright": "1.64.0"
+  }
+}

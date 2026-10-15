@@ -40,6 +40,7 @@ gvfs-mtp
 gvfs-nfs
 gvfs-smb
 hyprland
+hyprland-guiutils
 hyprpicker
 hyprsunset
 imagemagick
@@ -62,6 +63,8 @@ nautilus
 nautilus-python
 neovim
 net-tools
+nodejs
+npm
 noto-fonts
 noto-fonts-cjk
 noto-fonts-emoji
@@ -94,10 +97,12 @@ tesseract-data-chi_sim
 tesseract-data-eng
 tldr
 tmux
+tree-sitter-cli
 ttf-jetbrains-mono-nerd
 ttf-liberation
 unzip
 usage
+uwsm
 vulkan-swrast
 which
 whois
@@ -111,3 +116,6 @@ xdg-desktop-portal-hyprland
 xdg-terminal-exec
 xdg-user-dirs
 zoxide
+
+# Private desktop session bus for portals and fcitx5.
+dbus

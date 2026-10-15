@@ -1,5 +1,76 @@
 # Changelog
 
+## 0.2.9 — 2026-10-15
+
+- Both core and full install mise plus the reference Pad’s Claude Code, Codex,
+  pi, opencode, herdr, crush and gh versions as programs.
+  oh-my-pi and Cursor Agent remain global-only: CN explicitly reports their quota skips
+  and the exact later-install command, preserving any existing copy.
+  README retains its generic inventory by request; its omp/cursor version
+  examples are unavailable on a fresh CN install until installed globally.
+  Node/npm move into core; herdr uses its available aarch64 prebuilt release.
+- Register verified program prefixes with mise link and provide commands in
+  ~/.local/bin, without writing mise/AI config, credentials, keys or tokens.
+  Preserve existing commands with backups and existing AI settings unchanged.
+  An append-only upstream patch disables mise provisioning in both modes and
+  skips skill links and pi theme seeding during installer finalization.
+- CN uses Gitee for this repo, npmmirror for npm artifacts, operator-owned Gitee
+  release assets for pinned release binaries. Enforce download
+  and redirect host allowlists and verify pinned SHA256/SHA512; no GitHub
+  fallback. All pi dependencies are pinned and verified before offline npm
+  installation with lifecycle scripts disabled. Global programs use upstream sources; desktop source snapshots use Gitee in both modes.
+- Optional program failures produce per-tool status and never stop desktop
+  installation. Cached downloads are reverified; repeated installs reuse
+  completed prefixes. Resume verified large downloads on slow links and avoid
+  fetching optional npm binaries for incompatible platforms. Split oversized
+  Gitee assets into verified parts, then verify the reconstructed original.
+  Track the full
+  reference inventory in docs/packages.md.
+- Extend regressions for forbidden CN hosts/redirects, corrupt downloads,
+  traversal, protected user files, optional failures and offline npm; fresh
+  full integration checks the programs-only boundary. README remains an
+  installation/usage guide with its single troubleshooting link.
+- Extend the program inventory to every active gold Pad mise tool, including
+  pi 1.2.0 from @earendil-works/pi-coding-agent (earendil-works/pi).
+- Create Work and standard XDG directories without overwriting user files or
+  directory preferences. Add available ALARM desktop packages and the full
+  JetBrains Nerd font fallback; build Yaru from a verified source bundle when
+  the repository package is unavailable.
+- Add verified Gitee source bundles for yay and requested AUR desktop tools,
+  and an absent-only LazyVim starter with pinned local plugins and automatic
+  network updates disabled. tree-sitter-cli uses its ALARM repository package.
+- Fix source-bundle makepkg verification by removing obsolete empty architecture
+  arrays while retaining verified top-level SHA256 inputs. Generate Yaru GTK
+  color prerequisites and package only icons/cursors. Repeat named optional
+  failures in the final installer summary, including failed helper processes.
+- Ship generic Pad input/display/llvmpipe defaults, isolated session environment,
+  fcitx5 + pinned public rime-ice, SC fonts/OCR, portal and lock-IME helpers,
+  window rules, qalculate and herdr bindings. Preserve existing IME preferences.
+  Remote access/VNC/upgrades stay manual opt-ins; document unvalidated Hyprland
+  damage-clip builds as a known item. README unchanged by these tweaks.
+- Fix lock-IME reset using the compositor lock probe (0.56 has no lock IPC
+  event); launch the desktop with a private D-Bus session for portals/fcitx5.
+  Preserve existing rime-ice-git packages on global upgrades.
+- Fix installer input defaults to `compose:caps` so fcitx5 receives Shift;
+  preserve edited/symlinked input.lua and update only unchanged defaults.
+  Deploy Rime schemas explicitly, upgrading only the exact installer fallback
+  to rime_ice first plus luna_pinyin_simp; report deploy failures in the final
+  summary. Add fresh/repeat/custom/symlink/failure regression coverage.
+- Mirror ghui's verified ARM64 package to Gitee because npmmirror returns 404.
+  Support reviewed per-asset/per-part Gitee base URLs with repository-scoped
+  redirects; preserve whole-file and split-part checksums.
+- Validation: final `tests/run.sh --full` passed all 12 checks, including fresh
+  ARM64 installation and second-run idempotence. Real Pad CN core reinstall
+  passed all 22 included tool provenance/version checks, package/tweak checks,
+  native Rime migrations and live Shift toggle; 169 protected paths unchanged.
+  Evidence: [v0.2.9 validation](docs/v0.2.9-validation.md).
+- Mandatory process/provenance: Codex **gpt-6-astra** implementation; pi
+  **xiaomi/mimo-v2.6-pro-ultraspeed** design and patch review in
+  `/tmp/mimo-logs/v029-design.log` and `v029-patch-review.log`; independent
+  Claude Code **claude-opus-5-5** review (`claude -p --model claude-opus-5-5
+  --permission-mode bypassPermissions`) in `v029-claude-review.log`. Final IME follow-up and test-closure reviews also passed; all findings
+  resolved before release. Raw local review logs are not bundled.
+
 ## 0.2.8 — 2026-10-15
 
 - Root cause, confirmed on the failing Pad itself: the staged

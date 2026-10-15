@@ -1,0 +1,8 @@
+{
+  "name": "omarchy-pad-cf-program",
+  "version": "0.2.9",
+  "private": true,
+  "dependencies": {
+    "cf": "1.0.0-beta.12"
+  }
+}

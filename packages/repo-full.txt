@@ -20,8 +20,6 @@ mariadb-libs
 meson
 moonlight-qt
 ninja
-nodejs
-npm
 perf
 postgresql-libs
 protobuf
@@ -29,7 +27,6 @@ python-poetry-core
 ruby
 rust
 strace
-tree-sitter-cli
 ttyd
 wf-recorder
 wget

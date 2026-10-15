@@ -5,6 +5,8 @@ set -euo pipefail
 # --wait makes systemd-run use the D-Bus session bus; its default private socket
 # ($XDG_RUNTIME_DIR/systemd/private) rejects peers from inside the container.
 # Wrapped in /bin/sh because systemd-run resolves bare command names inside this container.
+# The desktop has a private bus; host commands explicitly select the host bus.
+export DBUS_SESSION_BUS_ADDRESS="unix:path=${XDG_RUNTIME_DIR:?}/bus"
 exec systemd-run --user --wait --collect --quiet \
   --setenv=WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-wayland-1}" --setenv=DISPLAY="${DISPLAY:-:0}" \
   --setenv=XDG_CURRENT_DESKTOP=Hyprland --setenv=XDG_SESSION_TYPE=wayland \

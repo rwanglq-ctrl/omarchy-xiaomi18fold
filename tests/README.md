@@ -15,6 +15,11 @@ self-test, the pinned upstream SHA and sequential patch application, all repo
 and AUR package names, both entrypoint OS paths and installer dry-runs (normalizing the checkout/cache
 paths before checking for a leaked account name), rendered
 host launcher syntax, Lua syntax, file sizes, backup files and escaping symlinks.
+The tool-program regressions exercise CN download/redirect refusal, checksum
+failures and corrupt cache retries, archive traversal, protected user settings,
+command backups, per-tool nonfatal failures, and offline npm dependency pins.
+Fresh full integration also asserts no AI configs, auth directories or skills
+were created. Real Pad CLI version checks are a separate release gate.
 Package metadata must already be synchronized; tests never update the live system.
 Upstream is shallow-cloned once under `~/.cache/omarchy-alarm-tests`.
 

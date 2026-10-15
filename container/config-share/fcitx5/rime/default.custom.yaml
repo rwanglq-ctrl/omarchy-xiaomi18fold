@@ -1,6 +1,5 @@
-# 雾凇拼音（rime-ice-git，AUR），设置从 Debian 移植
+# 公共雾凇拼音源码包；仅在不存在时创建用户配置
 patch:
-  __include: rime_ice_suggestion:/
   schema_list:
     - schema: rime_ice
     - schema: luna_pinyin_simp

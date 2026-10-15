@@ -14,7 +14,7 @@ with tempfile.TemporaryDirectory(prefix='patch-upgrade-') as d:
     subprocess.run(['git','clone','--quiet','--shared',str(upstream),str(checkout)],check=True)
     git('config','commit.gpgsign','false')
     git('switch','-c','arm-port')
-    for patch in sorted((root/'patches').glob('*.patch'))[:3]:
+    for patch in sorted((root/'patches').glob('*.patch'))[:-1]:
         git('-c','user.name=tests','-c','user.email=tests@example.com','am',str(patch))
     old=git('rev-parse','HEAD')
     env=dict(os.environ,ROOT=str(root),OMARCHY_PATH=str(checkout),MIRROR='global')
@@ -26,5 +26,5 @@ with tempfile.TemporaryDirectory(prefix='patch-upgrade-') as d:
     (checkout/'local-user-file').write_text('preserve this\n')
     result=apply();assert result.returncode!=0 and 'local changes' in result.stderr
     assert (checkout/'local-user-file').read_text()=='preserve this\n' and git('rev-parse','HEAD')==new
-print('PASS patch upgrade: existing three-patch install, apply only fourth, stable rerun, preserve local changes')
+print('PASS patch upgrade: existing prior-patch install, apply only newest, stable rerun, preserve local changes')
 PY

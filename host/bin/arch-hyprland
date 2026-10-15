@@ -99,8 +99,8 @@ exec sudo -n SYSTEMD_NSPAWN_LOCK=0 systemd-nspawn -q -D "$rootfs" -M arch-deskto
   --property=DeviceAllow='char-drm rw' --property=DeviceAllow='char-input rw' --property=DeviceAllow='/dev/udmabuf rw' \
   --setenv=HOME='@CHOME@' --setenv=USER='@USER@' --setenv=LOGNAME='@USER@' \
   --setenv=XDG_RUNTIME_DIR=/run/user/@UID@ \
-  --setenv=DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/@UID@/bus \
   --setenv=XDG_SESSION_TYPE=wayland --setenv=XDG_CURRENT_DESKTOP=Hyprland \
   --setenv=XDG_SESSION_DESKTOP=Hyprland --setenv=LIBSEAT_BACKEND=seatd \
+  --setenv=PATH=/usr/local/sbin:/usr/local/bin:/usr/bin \
   --setenv=LANG=en_US.UTF-8 $renderer $mesa \
-  /bin/sh -c 'unset WAYLAND_DISPLAY WAYLAND_SOCKET; echo "stage=container-entry"; id; test -w "$XDG_RUNTIME_DIR" || { echo "stage=runtime-not-writable" >&2; exit 1; }; echo "stage=start-hyprland"; exec "$@"' arch-launch $launch "$@"
+  /bin/sh -c 'unset WAYLAND_DISPLAY WAYLAND_SOCKET; echo "stage=container-entry"; id; test -w "$XDG_RUNTIME_DIR" || { echo "stage=runtime-not-writable" >&2; exit 1; }; echo "stage=start-hyprland"; exec dbus-run-session -- "$@"' arch-launch $launch "$@"

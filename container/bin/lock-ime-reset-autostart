@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+set -euo pipefail
+# Hyprland 0.56 has no socket2 lock event. Use Omarchy's compositor lock probe.
+: "${XDG_RUNTIME_DIR:?}" "${HYPRLAND_INSTANCE_SIGNATURE:?}"
+command -v fcitx5-remote >/dev/null || exit 0
+command -v omarchy-hyprland-session-locked >/dev/null || exit 0
+exec 9>"$XDG_RUNTIME_DIR/omarchy-lock-ime-reset.lock"
+flock -n 9 || exit 0
+socket="$XDG_RUNTIME_DIR/hypr/$HYPRLAND_INSTANCE_SIGNATURE/.socket.sock"
+locked=false
+while [[ -S $socket ]]; do
+  if omarchy-hyprland-session-locked; then
+    if ! $locked; then fcitx5-remote -c || true; fi
+    locked=true
+  else
+    locked=false
+  fi
+  sleep 1
+done

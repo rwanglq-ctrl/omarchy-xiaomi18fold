@@ -1,4 +1,4 @@
-# Install network audit and mainland China policy (updated for 0.2.5)
+# Install network audit and mainland China policy (updated for 0.2.9)
 
 Scope: every tracked entry point in `install.sh`, `host/`, `container/`,
 `tools/`, `packages/`, `patches/`, `config/`, plus code invoked from pinned
@@ -29,29 +29,30 @@ also turn blocked endpoints into long apparent hangs.
 | host/install.sh signature key | Previously GPG HKPS `keyserver.ubuntu.com`, `OMARCHY_ALARM_KEYSERVER` override | Local vendored public key; no keyserver fetch. Existing fingerprint checked against VALIDSIG; Downloaded but unverifiable signatures are fatal. Unavailable verification emits an explicit UNVERIFIED warning. MD5 alone is not publisher authentication. |
 | host/install.sh rootfs setup | `pacman -Syu base-devel git sudo` against bundled ALARM `/etc/pacman.d/mirrorlist`, generally `mirror.archlinuxarm.org` | Replace mirrorlist before the first sync, including reused rootfs. TUNA/USTC/BFSU/SJTU, `$arch/$repo`; pacman handles per-file mirror fallback. `pacman-key --init/--populate` uses installed local keys, not a network keyserver. |
 | container/install.sh repository packages | `pacman -Syu` for packages/repo-core.txt and additive repo-full.txt; dependencies and fonts from ALARM sync DBs | Same four mainland mirrors before syncing, original mirrorlist backed up. Global mode retains existing sources. |
-| container/install.sh yay bootstrap | `git clone https://aur.archlinux.org/yay.git`; makepkg sync dependencies, source archives, Go modules; build/install yay | CN skips all AUR builds explicitly; stock Rime retained. Global behavior unchanged. |
-| container/install.sh AUR | yay RPC and recipe Git at `aur.archlinux.org`; `yay -S`; tensaku/omawrite cloned directly and makepkg `--ignorearch` | CN skips all 12 manifest entries (full includes core). AUR mirrors only mirror recipes, not their source downloads; no false promise of full AUR availability. |
+| container/install.sh yay/bootstrap and requested desktop builds | Pinned PKGBUILDs and upstream source archives; makepkg builds as the desktop user | Verified source bundles from this project’s Gitee tools-v0.2.9 release. Repository build dependencies use ALARM mirrors; Cargo and Go dependencies use rsproxy.cn and goproxy.cn. No live AUR recipe or GitHub source fetch. |
+| container/install.sh remaining full-profile AUR | yay RPC and recipe Git at `aur.archlinux.org`; `yay -S` | Extra packages without pinned source bundles remain global-only. The requested v0.2.9 core desktop set uses the verified bundle route above. `--no-aur` explicitly skips source builds. |
 | container/install.sh Omarchy | `git clone --branch v4.0.4 --depth 1 https://github.com/basecamp/omarchy.git` | Restore exact vendored Git objects/tag/shallow boundary, checksum all four parts, verify patches/BASE; apply patches with local git am. No GitHub fetch. Global still clones (120s deadline). |
-| container/install.sh optional mise | `curl https://mise.run` then execute downloaded installer; installer fetches platform release assets from GitHub | Explicit opt-in full profile only globally; CN skips even when opt-in requested. Curl deadline/retries added. |
-| invoked Omarchy provision-user | install/user/all.sh → theme, chromium, git, xcompose, mise-work, hardware, keyring, mise; refresh-applications / xdg defaults | Theme/assets/config local. New CN patch skips both mise leaves even if mise was already installed. Other invoked leaves do not fetch. |
-| invoked upstream mise-work | With mise present, Node `mise use -g node@latest`; upstream uses nodejs.org and/or tool release backends; missing bundled x64 archive in provision-owner triggers network fallback | CN returns before this code. Globally original ARM patch skips it if mise is absent. |
-| invoked upstream mise | Tool stubs/backend installs for codex, claude, crush, gemini, gh, copilot, opencode, playwright, pi, oh-my-pi, grok, cursor-agent, ghui, hunk, Hermes, Muse (`api.meta.ai`) | CN returns before any tool setup. Most commands create deferred wrappers; actual tool download occurs when launched. Global preserves upstream behavior. |
+| container/install.sh tool programs / lib/tool-programs.py | Pinned npm native tarballs, pi locked dependencies, release assets (Cursor and omp global-only) | In CN, both profiles use npm via npmmirror; other included release binaries via operator-owned Gitee tools-v0.2.9 assets with pinned SHA256. Each HTTPS redirect is checked before following; no GitHub or third-party proxy fallback. mise only links verified local prefixes. |
+| invoked Omarchy provision-user | User finalization and desktop theme | Both modes suppress upstream mise provisioning, AI skill links and pi theme activation. Existing AI configs are preserved; no AI defaults are seeded. Desktop leaves remain local. |
 | container/extras/build-hyprland-0562-fix.sh | Optional `git clone --recursive --shallow-submodules` GitHub `hyprwm/Hyprland` v0.56.2; Git submodules and CMake/meson build dependency paths | Not invoked by install.sh or container/install.sh. Manual source-build helper requires reachable upstream or prepopulated sources; CN base install uses pacman Hyprland. |
 
 ## Ecosystems, fonts and data
 
-- Repository fonts in repo-core/repo-full use pacman, not fonts.googleapis.com.
-  AUR fonts `ttf-ia-writer`, `ttf-lxgw-wenkai`, and Rime `rime-ice-git` are
-  upstream source fetches and are skipped in CN. `fc-cache -f` is local.
-- There is no direct npm install, pip install, cargo install, go install or
-  rustup in this repository's base installer. AUR PKGBUILDs and optional
-  upstream tool installers can invoke those ecosystems; CN excludes them.
+- Repository fonts use pacman. `ttf-ia-writer` uses a verified Gitee source
+  bundle. Extra full-profile font/Rime recipes without bundles remain
+  replaced by a pinned rime-ice source bundle in both modes; existing IME preferences are preserved. `fc-cache -f` is local.
+- The base installer verifies every locked pi dependency tarball itself, then
+  uses `npm cache add --offline` and `npm ci --offline --ignore-scripts`. npm
+  cannot fetch registry metadata, follow redirects or execute lifecycle hooks.
+  Native npm tool archives are extracted without running their installers.
+  Requested desktop source builds use Cargo/Go CN registries; no rustup
+  bootstrap or pip installation is needed.
 - CN exports npm registry `https://registry.npmmirror.com`, pip index
   `https://pypi.tuna.tsinghua.edu.cn/simple`, Go proxy `https://goproxy.cn`,
   Rustup distribution/update servers `https://rsproxy.cn` and `/rustup`,
   and a Cargo sparse registry index. These process settings do not guarantee
   arbitrary Cargo source replacement or mirror arbitrary Git dependencies;
-  no language-tool build is needed for CN installation.
+  the pinned desktop recipes are separately checked for Git dependencies.
 - Overseas ecosystem defaults include registry.npmjs.org, pypi.org,
   files.pythonhosted.org, proxy.golang.org, sum.golang.org,
   static.rust-lang.org, index.crates.io and static.crates.io. None is a hard
@@ -62,8 +63,12 @@ also turn blocked endpoints into long apparent hangs.
   fetches. `config/` contains local config, including a kitty documentation
   URL (not downloaded); `patches/` contains local git am inputs and runtime
   URLs such as Discord invite/OpenClaw localhost, not installation fetches.
-- No global third-party GitHub proxy is enabled. No secrets, mirror auth
-  tokens, disabled TLS verification or disabled package signature checks are added.
+- CN release binaries and LazyVim/plugin snapshots use operator-owned Gitee
+  assets. Third-party GitHub proxies are prohibited. No global Git proxy,
+  mirror tokens, disabled TLS verification or disabled package signature
+  checks are added. LazyVim is installed only when its config is absent,
+  with automatic plugin/parser/LSP downloads disabled. See
+  [the program manifest and boundary](packages.md) and [v0.2.9 evidence](v0.2.9-validation.md).
 
 ## Tests and development-only fetches
 
@@ -88,24 +93,26 @@ MIRROR=cn bash ./install.sh --profile core
 `--mirror cn` is equivalent. `global` is the default; `auto` measures GitHub
 reachability, not location or all possible filtering rules. A reachable
 GitHub page does not prove its raw/releases/CDN are reachable: use explicit
-CN where needed. A full CN profile installs repository extras and skips
-AUR extras. Every release is pushed to origin first, then the operator synchronizes
+CN where needed. Both CN profiles install the verified v0.2.9 desktop-source
+bundles; full additionally installs repository extras and skips only the
+remaining AUR extras without verified bundles. Every release is pushed to origin first, then the operator synchronizes
 Gitee main and the release tag. Use README's Gitee command for CN Pad installs.
 Check the bootstrap SHA; the mirror may lag during that publication handoff.
 Source mirrors and URL overrides are trust inputs.
 
 ## AUR recipe source audit
 
-The live AUR recipes were cloned read-only on 2026-10-13 (recipes and lockfile
-versions can change independently of this project). All are disabled in CN.
-Go/Cargo dependency graphs are dynamic upstream inputs; their individual
-module/crate URLs are not fixed by this repository.
+This table records upstream sources from the original 2026-10-13 audit.
+For v0.2.9, the requested desktop packages use fixed recipes and verified
+Gitee source bundles, with locked Go/Cargo dependencies obtained from CN
+registries. Remaining live AUR recipes are global-only and can change
+independently of this repository.
 
 | Manifest package | Recipe source fetches and build fetches |
 | --- | --- |
 | rime-ice-git | Git `https://github.com/iDvel/rime-ice.git` |
 | ttf-ia-writer | 16 TTF files under `https://github.com/iaolo/iA-Fonts/raw/` at the recipe-pinned commit: Mono, Quattro, Duo, Duospace × Bold/BoldItalic/Italic/Regular; redirects to raw.githubusercontent.com |
-| yaru-icon-theme | AUR RPC reports the package, but the Git clone returned an empty repository (`warning: You appear to have cloned an empty repository.`); the cgit PKGBUILD endpoint also returned HTTP 404, so its current recipe sources could not be confirmed. This is a separate global-install availability risk. CN does not require it. |
+| yaru-icon-theme | v0.2.9 uses the upstream `ubuntu/yaru` 26.10.3 source archive, fixed SHA256, and a local icons-only Meson recipe; source archive bundled on Gitee. |
 | yay | `https://github.com/Jguer/yay/archive/vVERSION.tar.gz`; Go dependency modules during make build, default proxy.golang.org/checksum service |
 | aether | `https://github.com/omacom/aether/archive/refs/tags/vVERSION.tar.gz` and `/releases/download/vVERSION/aether-linux-arm64` (amd64 variant for x86_64) |
 | cliamp | `https://github.com/bjarneo/cliamp/archive/refs/tags/vVERSION.tar.gz`; `go build` module fetches |
@@ -122,7 +129,9 @@ selected by yay may introduce additional recipes; those are not pinned.
 No npm/pip fetch appears in these directly audited PKGBUILDs. That does not
 cover arbitrary later recipe changes or post-install tool use.
 
-Delegation: the audit was initially sent to `pi` with
+Historical audit process (2026-10-13, separate from the mandatory v0.2.9 reviews): the audit was initially sent to `pi` with
 `zai-coding-cn/glm-5.3`. It produced no output or edits for over ten minutes;
 it was terminated by SIGTERM, exit 143, with no error text. The audit and all
 implementation/verification were completed directly afterward.
+
+CN omp and cursor-agent are explicitly skipped under operator Option C (Gitee quota); global installation remains available. ghui ARM64 and rime-ice use checksum-pinned Gitee bundles. Each asset/part may specify its reviewed operator-owned `cn_base_url`; no GitHub/proxy fallback.

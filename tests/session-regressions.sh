@@ -191,7 +191,7 @@ fi
                 while not (w/signal_point).exists() and time.monotonic()<end:time.sleep(.005)
                 assert (w/signal_point).exists(),'no signal point reached'
                 p.send_signal(stop)
-            out,err=p.communicate(timeout=30)
+            out,err=p.communicate(timeout=90 if emulated else 30)
             logs=set(state.glob('arch-session-*.log'))-old
             text=''.join(f.read_text() for f in logs)
             for f in logs:assert f.stat().st_mode&0o777==0o600
@@ -209,7 +209,7 @@ fi
     assert text.index('snapshot complete')<text.index('stage=cleanup-begin')
     assert not (w/'machine').exists() and not (w/'weston').exists()
     args=(w/'nspawn-args').read_text()
-    for value in ['--setenv=LIBSEAT_BACKEND=seatd','--as-pid2']:
+    for value in ['--setenv=LIBSEAT_BACKEND=seatd','--as-pid2','--setenv=PATH=/usr/local/sbin:/usr/local/bin:/usr/bin']:
         assert value in args,value
     for flag in ['LIBGL_ALWAYS_SOFTWARE','GALLIUM_DRIVER','AQ_NO_MODIFIERS','AQ_NO_ATOMIC','WAYLAND_DISPLAY']:
         assert '--setenv='+flag not in args
@@ -290,6 +290,8 @@ fi
     args=(w/'nspawn-args').read_text()
     assert '/opt/hyprland-test/bin/start-hyprland\n--path\n/opt/hyprland-test/bin/Hyprland' in args
     assert '--setenv=LD_LIBRARY_PATH=/opt/hyprland-test/lib:/opt/debian-mesa/lib' in args
+    paths=[line.split('=',2)[2] for line in args.splitlines() if line.startswith('--setenv=PATH=')]
+    assert paths[-1] == '/opt/hyprland-test/bin:/usr/local/sbin:/usr/local/bin:/usr/bin'
     (home/'.config/arch-use-arch-mesa').touch()
     reset(); result=run(); assert result[0]==0,result
     args=(w/'nspawn-args').read_text()
@@ -363,7 +365,7 @@ fi
     p=subprocess.run([str(bins/'hypr-session'),'--cleanup'],env=dict(env,INVOCATION_ID='ours'),capture_output=True)
     assert p.returncode==0 and not (w/'kills').exists()
     (state/'desktop-owner').write_text('ours')
-    p=subprocess.run([str(bins/'hypr-session'),'--cleanup'],env=dict(env,INVOCATION_ID='ours'),capture_output=True,timeout=8)
+    p=subprocess.run([str(bins/'hypr-session'),'--cleanup'],env=dict(env,INVOCATION_ID='ours'),capture_output=True,timeout=30 if emulated else 8)
     assert p.returncode==0 and 'SIGKILL' in (w/'kills').read_text() and not (w/'machine').exists(),p.stdout
     assert '--kill-after=60' in (bins/'arch-selftest').read_text()
     assert 'SuccessExitStatus=143' in (root/'host/systemd/weston.service.d/hyprland.conf').read_text()

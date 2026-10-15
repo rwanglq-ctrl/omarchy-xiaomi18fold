@@ -43,14 +43,33 @@ if [[ -f "$ALLOWLIST" ]]; then
   done < "$ALLOWLIST"
 fi
 
+# Compile each scope into one expression instead of spawning grep once per
+# exception (especially costly in the aarch64 emulated validation runner).
+location_allowlist=''
+content_allowlist=''
+for pat in "${allowlist_patterns[@]}"; do
+  if [[ $pat == CONTENT:* ]]; then
+    expression=${pat#CONTENT:}
+    content_allowlist+="${content_allowlist:+|}(?:$expression)"
+  else
+    location_allowlist+="${location_allowlist:+|}(?:$pat)"
+  fi
+done
+
 is_allowed() {
   local file="$1" line="$2" rule="$3"
-  local loc="${file}:${line}:${rule}"
-  for pat in "${allowlist_patterns[@]}"; do
-    if printf '%s' "$loc" | grep -qP "$pat" 2>/dev/null; then
+  local loc="${file}:${line}:${rule}" content
+  # CONTENT: rules additionally match the complete source line. Legacy rules
+  # retain their location-only semantics for compatibility.
+  if [[ -n $location_allowlist ]] && printf '%s' "$loc" | grep -qP "$location_allowlist" 2>/dev/null; then
+    return 0
+  fi
+  if [[ -n $content_allowlist ]]; then
+    content=$(sed -n "${line}p" "$file")
+    if printf '%s' "$loc:$content" | grep -qP "$content_allowlist" 2>/dev/null; then
       return 0
     fi
-  done
+  fi
   return 1
 }
 

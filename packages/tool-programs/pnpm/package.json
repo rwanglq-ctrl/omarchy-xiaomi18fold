@@ -1,0 +1,8 @@
+{
+  "name": "omarchy-pad-pnpm-program",
+  "version": "0.2.9",
+  "private": true,
+  "dependencies": {
+    "pnpm": "10.34.7"
+  }
+}

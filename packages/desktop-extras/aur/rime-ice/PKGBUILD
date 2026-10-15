@@ -1,0 +1,20 @@
+# Pinned upstream dictionary/schema data; no personal dictionaries.
+pkgname=rime-ice
+pkgver=20261015.da1fbe602e38
+pkgrel=1
+pkgdesc='Rime Ice schemas and public dictionaries'
+arch=(any)
+url=https://github.com/iDvel/rime-ice
+license=(GPL-3.0-or-later)
+depends=(librime)
+conflicts=(rime-ice-git)
+_commit=da1fbe602e38f26db846fa10120ee64c2b0324c0
+source=("rime-ice-${_commit}.tar.gz::https://codeload.github.com/iDvel/rime-ice/tar.gz/${_commit}")
+sha256sums=('6e6c0e8c00b969690dbc8b394b0a8f8cb0ed3ad348297ad631de1790c693eebb')
+package() {
+  cd "rime-ice-$_commit"
+  install -d "$pkgdir/usr/share/rime-data"
+  # Namespaced schemas/data only: never replace the stock default.yaml.
+  cp -r cn_dicts en_dicts opencc lua *.schema.yaml *.dict.yaml symbols*.yaml custom_phrase.txt "$pkgdir/usr/share/rime-data/"
+  install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+}

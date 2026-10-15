@@ -6,10 +6,27 @@ machine_id_valid /etc/machine-id
 cmp -s /etc/machine-id /var/lib/dbus/machine-id
 echo 'PASS persistent container machine identity'
 home=$(getent passwd testuser | cut -d: -f6)
+for directory in Work Desktop Documents Downloads Music Pictures Public Templates Videos; do
+  [[ -d $home/$directory ]]
+  [[ $(stat -c %U "$home/$directory") == testuser ]]
+done
+[[ -f $home/.config/user-dirs.dirs ]]
+grep -Fxq 'XDG_DESKTOP_DIR="$HOME/Desktop"' "$home/.config/user-dirs.dirs"
+grep -Fxq 'XDG_TEMPLATES_DIR="$HOME/Templates"' "$home/.config/user-dirs.dirs"
+grep -Fxq 'XDG_PUBLICSHARE_DIR="$HOME/Public"' "$home/.config/user-dirs.dirs"
+pacman -Q uwsm hyprland-guiutils ttf-jetbrains-mono-nerd tree-sitter-cli
+[[ $(runuser -u testuser -- env PATH=/usr/local/bin:/usr/bin sh -c 'command -v uwsm-app') == /usr/local/bin/uwsm-app ]]
+echo 'PASS desktop home directories, repository additions, and uwsm-app shim precedence'
 checkout="$home/.local/share/omarchy"
 [[ $(readlink /usr/share/omarchy) == "$checkout" ]]
 for binary in Hyprland quickshell fcitx5 foot; do command -v "$binary"; done
 [[ -f $home/.config/hypr/hyprland.lua ]]
+grep -Fq 'kb_options = "compose:caps"' "$home/.config/hypr/input.lua"
+grep -Fq 'schema: luna_pinyin_simp' "$home/.local/share/fcitx5/rime/default.custom.yaml"
+grep -Fq 'OK Rime schema deployment' "$home/.local/state/omarchy-alarm/desktop-config.txt"
+[[ -s $home/.local/share/fcitx5/rime/build/luna_pinyin_simp.prism.bin ]]
+# librime reuses the distribution's precompiled dictionary when available.
+[[ -s $home/.local/share/fcitx5/rime/build/luna_pinyin.table.bin || -s /usr/share/rime-data/build/luna_pinyin.table.bin ]]
 base=$(cat /src/patches/BASE)
 [[ $(runuser -u testuser -- git -C "$checkout" branch --show-current) == arm-port ]]
 for patch in /src/patches/*.patch; do
@@ -30,3 +47,10 @@ runuser -u testuser -- env -i HOME="$home" USER=testuser PATH=/usr/bin XDG_RUNTI
 cat "$color_test/result.log"
 grep -Fq 'PASS shell color roles and Style resolution' "$color_test/result.log"
 ! grep -Eq 'TypeError|ReferenceError|Failed to load configuration|FAIL shell' "$color_test/result.log"
+
+# A fresh desktop install must not create AI configuration, credentials or skills.
+for path in .config/mise .config/herdr .config/opencode .claude .codex .pi .agents .hermes; do
+  [[ ! -e $home/$path ]] || { echo "Unexpected AI user configuration: $path" >&2; exit 1; }
+done
+[[ -s $home/.local/state/omarchy-alarm/tool-programs.txt ]]
+echo 'PASS programs-only AI boundary'

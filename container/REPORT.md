@@ -36,8 +36,9 @@ host state, package installation, git commit or push was performed.
 ## Integration details
 
 The Rime share overlay is under `container/config-share/`, within container
-ownership. The optional mise switch is `OMARCHY_ALARM_INSTALL_MISE=1` together
-with the full profile. The main installer never runs the optional compositor
+ownership. As of v0.2.9, both profiles install pinned mise and tool
+programs without importing user settings or credentials; the former optional
+mise switch is retired. The main installer never runs the optional compositor
 build. The repository scanner initially reported the ordinary upstream foot
 and kitty include paths, plus a Rime config path, as base64 false positives;
 the scan was stopped after these findings and they were reported to its owner.

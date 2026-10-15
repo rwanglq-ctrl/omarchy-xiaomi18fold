@@ -1,5 +1,10 @@
 # aur-core; full files are additive to core.
-rime-ice-git
+# rime-ice uses the pinned source bundle in desktop-extras.
 ttf-ia-writer
 yaru-icon-theme
 yay
+aether
+cliamp
+omawrite
+tensaku
+ttfx

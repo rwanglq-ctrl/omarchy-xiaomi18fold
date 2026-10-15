@@ -1,0 +1,8 @@
+{
+  "name": "omarchy-pad-pi-program",
+  "version": "0.2.9",
+  "private": true,
+  "dependencies": {
+    "@earendil-works/pi-coding-agent": "1.2.0"
+  }
+}

@@ -14,7 +14,7 @@
 - **设备**: 支持 Android 16 Linux Terminal 的 aarch64 设备（已在 Xiaomi Pad 9 Pro Max 上测试）
 - **宿主系统**: Debian 13 (trixie) aarch64
 - **虚拟化**: Android 16 Linux Terminal（AVF）
-- **磁盘**: ≥ 10 GB 可用空间（`core` 档装完约 7.5 GB，含软件包缓存）
+- **磁盘**: 建议 ≥ 20 GB 可用空间（桌面、AI 程序、软件包及下载缓存）
 - **网络**: 需要互联网连接（下载 Arch Linux ARM 根文件系统和软件包）
 
 ## 从零开始：在 Xiaomi Pad 9 Pro Max 上安装
@@ -27,8 +27,8 @@
    「Linux 开发环境」（Linux development environment），桌面上会出现「终端」（Terminal）应用。
 3. **初始化 Debian**：打开「终端」应用，首次启动会下载并安装 Debian 13 镜像
    （几百 MB，建议连接 Wi-Fi），完成后进入命令行。
-4. **扩大磁盘**：在终端右上角菜单进入「设置 → 调整磁盘大小」，调到 **≥ 16 GB**
-   （`core` 档装完约 7.5 GB，留出空间给软件包缓存和个人文件）。
+4. **扩大磁盘**：在终端右上角菜单进入「设置 → 调整磁盘大小」，调到 **≥ 24 GB**
+   （`core` 包含桌面和 AI 程序，另留空间给缓存和个人文件）。
 5. **运行一键安装**（见下一节）。脚本会先配置 Debian 宿主，再下载并配置 Arch Linux ARM 容器，
    整个过程需要下载数 GB 的软件包，耗时取决于网速。
 6. **切换到 Omarchy 桌面**：运行 `hypr-switch arch`，然后点击终端顶部的
@@ -69,8 +69,17 @@ MIRROR=cn bash ./install.sh --profile core
 默认 `global` 保持海外安装方式。国内模式使用阿里云/清华/中科大 Debian 源，
 清华/中科大/北外/交大 ALARM rootfs 和 pacman 源；原有软件源会备份。
 Omarchy v4.0.4 已随源码附带，取得本项目源码后无需另行从 GitHub 下载上游。
-国内模式跳过 AUR/yay 和可选 mise，保留仓库字体及默认 Rime 中文输入；
-full 中的 AUR 应用也会跳过。`MIRROR=cn` 要放在管道右侧的 `bash` 前面，放在 curl 左侧无效。
+国内模式使用 Gitee 上固定版本、校验过的构建源码和发布物。未镜像的
+额外 AUR 应用会明确跳过；Rime 保留可用的默认中文输入方案。
+core 和 full 均安装 mise、Claude Code、Codex、pi、opencode、herdr、crush、
+Cursor Agent、oh-my-pi（`omp`）、GitHub CLI（`gh`）及参考工具清单中的其余程序，
+只安装程序，不导入配置、
+密钥、令牌或登录信息。请在 Arch 桌面终端运行这些命令并自行登录。
+可选工具失败不会中断桌面安装，重新运行安装命令可重试；结果见
+`~/.local/state/omarchy-alarm/tool-programs.txt`。
+安装器创建 `~/Work` 和标准用户目录，保留已有文件及目录偏好。
+仅在 `~/.config/nvim` 不存在时安装 LazyVim 初始配置；已有 Neovim 配置保持原样。
+`MIRROR=cn` 要放在管道右侧的 `bash` 前面，放在 curl 左侧无效。
 
 `MIRROR=cn` 默认从 Gitee 拉取本项目源码并选择国内软件包源；`global` 默认从 GitHub 拉取。
 也可设置 `OMARCHY_ALARM_REPO` 指向你自己信任的 Git 镜像。
@@ -94,14 +103,14 @@ cd omarchy-xiaomipad9pm
 
 - `--dry-run` — 仅打印操作，不做任何修改
 - `--user NAME` — 指定用户名（默认当前用户）
-- `--profile core` — 最小安装：Omarchy 桌面 + 中文输入
+- `--profile core` — Omarchy 桌面 + 中文输入 + mise 和 AI 工具程序
 - `--profile full` — 完整安装：core + 额外的 aarch64 可用应用
 
 ## 安装配置文件
 
 | 配置 | 说明 |
 |------|------|
-| `core` | Omarchy 桌面环境 + fcitx5 中文输入法 + 雾凇拼音 |
+| `core` | Omarchy 桌面 + fcitx5/Rime 中文输入 + mise 和 AI 工具程序 |
 | `full` | core + 额外应用（如 qalculate-gtk 等 aarch64 可用的工具） |
 
 ## 切换会话
@@ -185,7 +194,7 @@ Debian 13 VM of Android 16's Linux Terminal, and shown on its display through se
 
 - An aarch64 device with Android 16's Linux Terminal (tested on Xiaomi Pad 9 Pro Max)
 - The Terminal's Debian 13 (trixie) aarch64 VM
-- ≥ 10 GB free disk space (the `core` profile takes about 7.5 GB, package cache included)
+- Allow ≥ 20 GB free disk space for the desktop, AI programs and package/download caches
 - An internet connection
 
 ### From scratch on Xiaomi Pad 9 Pro Max
@@ -198,7 +207,7 @@ Menu names follow HyperOS (Android 16) and may differ slightly between versions.
    turn on *Linux development environment*. A *Terminal* app appears.
 3. **Set up Debian**: open *Terminal*. The first launch downloads and installs the Debian 13 image
    (a few hundred MB, Wi-Fi recommended) and drops you into a shell.
-4. **Grow the disk**: *Terminal menu → Settings → Resize disk*, set it to **≥ 16 GB**.
+4. **Grow the disk**: *Terminal menu → Settings → Resize disk*, set it to **≥ 24 GB**.
 5. **Run the one-command installer** below. It prepares the Debian host, then downloads and configures
    the Arch Linux ARM container; expect several GB of downloads.
 6. **Switch to the Omarchy desktop**: run `hypr-switch arch`, then tap the Terminal's *Display* button
@@ -218,7 +227,7 @@ cd omarchy-xiaomipad9pm
 ./install.sh [--dry-run] [--user NAME] [--profile core|full] [--yes]
 ```
 
-- `core`: the Omarchy desktop plus Chinese input (fcitx5 + Rime / rime-ice)
+- `core`: the Omarchy desktop, Chinese input (fcitx5 + Rime), mise and AI tool programs
 - `full`: core plus extra apps that exist for aarch64
 
 ### China installation and resume
@@ -230,7 +239,35 @@ curl -fsSL https://gitee.com/zenbardofsuhe/omarchy-xiaomipad9pm/raw/main/install
 Gitee is synchronized separately and may lag GitHub. Check the printed version and source SHA.
 To resume or update, rerun the same installation command with the same user and rootfs path.
 The installer reuses the existing container and cached downloads, and does not restart the display.
-CN mode skips AUR/yay and optional mise downloads.
+Both profiles install mise, Claude Code, Codex, pi, opencode, herdr, crush,
+Cursor Agent, oh-my-pi (`omp`), GitHub CLI (`gh`), and the remaining reference
+tool inventory as programs only. CN builds use pinned source assets from Gitee;
+extra AUR applications without mirrored sources are reported as skipped.
+No tool settings, credentials, keys, tokens, or sign-in sessions are installed.
+CN program downloads use npmmirror and checksum-verified assets in the project’s
+Gitee release. There is no GitHub proxy or GitHub fallback.
+A failed optional tool is reported and does not stop desktop setup; rerun to retry.
+The installer creates `~/Work` and the standard user directories while preserving
+existing files and directory preferences. LazyVim is seeded only when
+`~/.config/nvim` is absent; existing Neovim configuration is preserved.
+
+Run tools in the Arch desktop terminal:
+
+```bash
+mise --version
+claude --version
+codex --version
+pi --version
+opencode --version
+herdr --version
+crush --version
+cursor-agent --version
+omp --version
+gh --version
+```
+
+Commands are available from `~/.local/bin`; sign in separately with each tool.
+Installation results are in `~/.local/state/omarchy-alarm/tool-programs.txt`.
 
 ### Switching desktops and selftest
 

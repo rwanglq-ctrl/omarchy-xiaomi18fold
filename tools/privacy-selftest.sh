@@ -183,6 +183,28 @@ else
 fi
 rm -rf "$CLEAN_DIR"
 
+# Content-scoped public checksum exceptions survive moved lines, but cannot
+# hide a changed value at the same file/line/rule location.
+CONTENT_DIR=$(mktemp -d)
+mkdir -p "$CONTENT_DIR/packages/tool-programs"
+fixture="$CONTENT_DIR/packages/tool-programs/manifest.json"
+public_line=$(grep -m1 'sha256-hex:' "$SCRIPT_DIR/../packages/tool-programs/manifest.json")
+printf '\n\n%s\n' "$public_line" > "$fixture"
+if bash "$SCANNER" "$CONTENT_DIR" >/dev/null 2>&1; then
+  echo '  PASS: exact public checksum allowed after line moves' >&2
+else
+  echo '  FAIL: exact public checksum not allowed' >&2
+  failures=$((failures + 1))
+fi
+printf '\n\n%s changed-value-1234567890ABCDEFGHIJKLMN\n' "$public_line" > "$fixture"
+if bash "$SCANNER" "$CONTENT_DIR" >/dev/null 2>&1; then
+  echo '  FAIL: changed allowlisted content escaped scan' >&2
+  failures=$((failures + 1))
+else
+  echo '  PASS: changed allowlisted content detected' >&2
+fi
+rm -rf "$CONTENT_DIR"
+
 echo "" >&2
 if (( failures > 0 )); then
   echo "Selftest: $failures failure(s)." >&2

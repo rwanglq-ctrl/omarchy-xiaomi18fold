@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+set -euo pipefail
+# Start only container portal processes; do not change the host session bus env.
+: "${XDG_RUNTIME_DIR:?XDG_RUNTIME_DIR is required}"
+[[ -n ${WAYLAND_DISPLAY:-} ]] || exit 0
+for ((attempt=0; attempt<100; attempt++)); do
+  [[ -S $XDG_RUNTIME_DIR/$WAYLAND_DISPLAY ]] && break
+  sleep 0.1
+done
+[[ -S $XDG_RUNTIME_DIR/$WAYLAND_DISPLAY ]] || exit 0
+mkdir -p "$HOME/.local/state/omarchy-alarm"
+exec 9>"$XDG_RUNTIME_DIR/omarchy-portal-autostart.lock"
+flock -n 9 || exit 0
+for program in xdg-desktop-portal-hyprland xdg-desktop-portal-gtk xdg-desktop-portal; do
+  if ! pgrep -u "$(id -u)" -f "^/usr/lib/$program( |$)" >/dev/null; then
+    "/usr/lib/$program" >>"$HOME/.local/state/omarchy-alarm/$program.log" 2>&1 &
+  fi
+done
+wait

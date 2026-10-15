@@ -26,9 +26,8 @@ elephant-runner | Unused previous desktop component; Omarchy v4 uses Quickshell 
 elephant-symbols | Unused previous desktop component; Omarchy v4 uses Quickshell and foot.
 elephant-websearch | Unused previous desktop component; Omarchy v4 uses Quickshell and foot.
 gpu-screen-recorder | Host owns system services, boot, networking or hardware.
-herdr | No supported ALARM package in this port; omitted.
+herdr | Arch package omitted; install verified aarch64 release through the core program manifest.
 hypridle | Unused previous desktop component; Omarchy v4 uses Quickshell and foot.
-hyprland-guiutils | No supported ALARM package in this port; omitted.
 hyprland-preview-share-picker | Use the portal built-in hyprland-share-picker.
 hyprlock | Unused previous desktop component; Omarchy v4 uses Quickshell and foot.
 kernel-modules-hook | Host owns system services, boot, networking or hardware.
@@ -36,7 +35,7 @@ lazydocker | Host owns system services, boot, networking or hardware.
 libeb | Transitive AUR dependency resolved by yay.
 localsend | No supported ALARM package in this port; omitted.
 mako | Unused previous desktop component; Omarchy v4 uses Quickshell and foot.
-mise-bin | No supported ALARM package in this port; omitted.
+mise-bin | Arch package omitted; install official mise aarch64 npm binary through the core program manifest.
 netctl | Host owns system services, boot, networking or hardware.
 networkmanager | Host owns system services, boot, networking or hardware.
 nss-mdns | Host owns system services, boot, networking or hardware.
@@ -55,12 +54,10 @@ swaybg | Unused previous desktop component; Omarchy v4 uses Quickshell and foot.
 system-config-printer | Host owns system services, boot, networking or hardware.
 tobi-try | No supported ALARM package in this port; omitted.
 ttf-jetbrains-mono-nerd-basic | Use ttf-jetbrains-mono-nerd.
-ttfx | No supported ALARM package in this port; omitted.
 tzupdate | Host owns system services, boot, networking or hardware.
 udiskie | Host owns system services, boot, networking or hardware.
 ufw | Host owns system services, boot, networking or hardware.
 ufw-docker | Host owns system services, boot, networking or hardware.
-uwsm | Host owns system services, boot, networking or hardware.
 vi | ALARM no longer provides this name; use ex-vi-compat.
 walker | Unused previous desktop component; Omarchy v4 uses Quickshell and foot.
 waybar | Unused previous desktop component; Omarchy v4 uses Quickshell and foot.

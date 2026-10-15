@@ -15,6 +15,7 @@ _build/
 target/
 
 # Cache
+__pycache__/
 .cache/
 
 # OS files

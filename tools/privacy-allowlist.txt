@@ -33,9 +33,149 @@ vendor/alarm-build-key\.asc:.*:base64-blob
 vendor/README\.md:(3|25):(base64-blob|hex-blob)
 
 # Example GitHub release URL is a scanner false positive
-docs/china-network\.md:110:base64-blob
+
 
 # Public DNS resolver addresses in installer policy and synthetic regression fixtures
 lib/network\.sh:.*:ipv4-address
 tests/installer-regressions\.sh:.*:ipv4-address
 tests/china-downloads-inside\.sh:.*:ipv4-address
+
+# Public pinned SHA256 release-asset digests, verified by tool-program regressions
+
+
+# Public upstream package authors, release checksums, pinned plugin commits and
+# upstream filenames. CONTENT: exceptions pin complete reviewed lines, so a
+# changed or appended secret at the same location is still reported.
+CONTENT:packages/desktop\-extras/aur/aether/PKGBUILD:[0-9]+:email\-address:\#\ Maintainer:\ Bjarne\ Øverli\ <bjarne@oever\.li>$
+CONTENT:packages/desktop\-extras/aur/ttfx/PKGBUILD:[0-9]+:email\-address:\#\ Maintainer:\ staszek\ <staszekborkowski7@gmail\.com>$
+CONTENT:packages/desktop\-extras/aur/omawrite/PKGBUILD:[0-9]+:email\-address:\#\ Maintainer:\ ImFenyx\ <imfenyxdev@protonmail\.com>$
+CONTENT:packages/desktop\-extras/lazyvim\-plugins\.json:[0-9]+:base64\-blob:\ \ \ \ "commit":\ "999700997f72227187d49d8b92667183dc7fc809"$
+CONTENT:packages/desktop\-extras/lazyvim\-plugins\.json:[0-9]+:base64\-blob:\ \ \ \ "commit":\ "78336bc89ee5365633bcf754d93df01678b5c08f"$
+CONTENT:packages/desktop\-extras/lazyvim\-plugins\.json:[0-9]+:base64\-blob:\ \ \ \ "commit":\ "655133c3b4c3e5e05ec549b9f8cc2894ac6f51b3"$
+CONTENT:packages/desktop\-extras/lazyvim\-plugins\.json:[0-9]+:base64\-blob:\ \ \ \ "commit":\ "edefef779ab08ce1a4a404713e3012b0d202bd35"$
+CONTENT:packages/desktop\-extras/lazyvim\-plugins\.json:[0-9]+:base64\-blob:\ \ \ \ "commit":\ "016802de402556da54c36bd7359b441266b01cdd"$
+CONTENT:packages/desktop\-extras/lazyvim\-plugins\.json:[0-9]+:base64\-blob:\ \ \ \ "commit":\ "5f0f270fdc7c5b0c21d903ee85b9cb06f2ac636a"$
+CONTENT:packages/desktop\-extras/lazyvim\-plugins\.json:[0-9]+:base64\-blob:\ \ \ \ "commit":\ "b4d01b0fdf3c9a549961c2f9ffe8dc09be166219"$
+CONTENT:packages/desktop\-extras/lazyvim\-plugins\.json:[0-9]+:base64\-blob:\ \ \ \ "commit":\ "fd780920613e541cbdfac41bf711583ed49f9249"$
+CONTENT:packages/desktop\-extras/lazyvim\-plugins\.json:[0-9]+:base64\-blob:\ \ \ \ "commit":\ "11595bf747edc270bce2069d1020502ad4ae56cf"$
+CONTENT:packages/desktop\-extras/lazyvim\-plugins\.json:[0-9]+:base64\-blob:\ \ \ \ "commit":\ "85c7ff3711b730b4030d03144f6db6375044ae82"$
+CONTENT:packages/desktop\-extras/lazyvim\-plugins\.json:[0-9]+:base64\-blob:\ \ \ \ "commit":\ "ff2cbcba459b637ec3fd165a2be59b7bbaeedf0d"$
+CONTENT:packages/desktop\-extras/lazyvim\-plugins\.json:[0-9]+:base64\-blob:\ \ \ \ "commit":\ "221ce6b2d999187044529f49da6554a92f740a96"$
+CONTENT:packages/desktop\-extras/lazyvim\-plugins\.json:[0-9]+:base64\-blob:\ \ \ \ "commit":\ "00b5473cca4db5b410ff4bae724e3b6e21f2687f"$
+CONTENT:packages/desktop\-extras/lazyvim\-plugins\.json:[0-9]+:base64\-blob:\ \ \ \ "commit":\ "2a6940af80375532e5e9e7c1f2fc6319a1b7a69d"$
+CONTENT:packages/desktop\-extras/lazyvim\-plugins\.json:[0-9]+:base64\-blob:\ \ \ \ "commit":\ "d0c4987a1ead2bcf4eb22cc9815c662d76677c08"$
+CONTENT:packages/desktop\-extras/lazyvim\-plugins\.json:[0-9]+:base64\-blob:\ \ \ \ "commit":\ "f916635dc5ae2f479fbb9ab8184bb9444b62e86c"$
+CONTENT:packages/desktop\-extras/lazyvim\-plugins\.json:[0-9]+:base64\-blob:\ \ \ \ "commit":\ "03eb1f0062a2cee5314d1ac3939246e4bb21352e"$
+CONTENT:packages/desktop\-extras/lazyvim\-plugins\.json:[0-9]+:base64\-blob:\ \ \ \ "commit":\ "7bfd942445fb63089b59f97ca487d605e715f155"$
+CONTENT:packages/desktop\-extras/lazyvim\-plugins\.json:[0-9]+:base64\-blob:\ \ \ \ "commit":\ "10fc361835c856ba4233ef5ea135b919bf3dce97"$
+CONTENT:packages/desktop\-extras/lazyvim\-plugins\.json:[0-9]+:base64\-blob:\ \ \ \ "commit":\ "f6230a5c06ba59e6059c14637f1dbe29a7978b9b"$
+CONTENT:packages/desktop\-extras/lazyvim\-plugins\.json:[0-9]+:base64\-blob:\ \ \ \ "commit":\ "ac062d0d01c019c0dbdb798968f3e5d8b35c3853"$
+CONTENT:packages/desktop\-extras/lazyvim\-plugins\.json:[0-9]+:base64\-blob:\ \ \ \ "commit":\ "ca581c3436fc2b236847f5b739ebc263739e5ca6"$
+CONTENT:packages/desktop\-extras/lazyvim\-plugins\.json:[0-9]+:base64\-blob:\ \ \ \ "commit":\ "5c7b0263797dfd1bd6202f2b219f3b53a80b2187"$
+CONTENT:packages/desktop\-extras/lazyvim\-plugins\.json:[0-9]+:base64\-blob:\ \ \ \ "commit":\ "d7220b55e16ed3c04e88086256def5d282429493"$
+CONTENT:packages/desktop\-extras/lazyvim\-plugins\.json:[0-9]+:base64\-blob:\ \ \ \ "commit":\ "b20b2a7887bd39c1a356980b45e03250f3dce49c"$
+CONTENT:packages/desktop\-extras/lazyvim\-plugins\.json:[0-9]+:base64\-blob:\ \ \ \ "commit":\ "74b06c6c75e4eeb3108ec01852001636d85a932b"$
+CONTENT:packages/desktop\-extras/lazyvim\-plugins\.json:[0-9]+:base64\-blob:\ \ \ \ "commit":\ "882c996cf28183f4d63640de0b4c02ec886d01f2"$
+CONTENT:packages/desktop\-extras/lazyvim\-plugins\.json:[0-9]+:base64\-blob:\ \ \ \ "commit":\ "31e3c38ce9b29781e4422fc0322eb0a21f4e8668"$
+CONTENT:packages/desktop\-extras/lazyvim\-plugins\.json:[0-9]+:base64\-blob:\ \ \ \ "commit":\ "cdc07ac78467a233fd62c493de29a17e0cf2b2b6"$
+CONTENT:packages/desktop\-extras/lazyvim\-plugins\.json:[0-9]+:base64\-blob:\ \ \ \ "commit":\ "bd67efe408d4816e25e8491cc5ad4088e708a69a"$
+CONTENT:packages/desktop\-extras/lazyvim\-plugins\.json:[0-9]+:base64\-blob:\ \ \ \ "commit":\ "a59d6092213447450191122c9346f309161504cb"$
+CONTENT:packages/desktop\-extras/lazyvim\-plugins\.json:[0-9]+:base64\-blob:\ \ \ \ "commit":\ "3aab2147e74890957785941f0c1ad87d0a44c15a"$
+CONTENT:packages/desktop\-extras/lazyvim\-assets\.json:[0-9]+:base64\-blob:\ \ \ \ "integrity":\ "sha256\-hex:0f1b3d0652f67974ea6a87abd7bdf1e7c700ca461db583295b048dda96337130"$
+CONTENT:packages/desktop\-extras/aur\-assets\.json:[0-9]+:base64\-blob:\ \ \ \ "integrity":\ "sha256\-hex:8717f4bbc044c68be9254bab87fb1e1052c97a3bfeecb0af16878605e59413a7"$
+CONTENT:packages/desktop\-extras/aur\-assets\.json:[0-9]+:base64\-blob:\ \ \ \ "integrity":\ "sha256\-hex:0cb327e86ab831688cba5152210e8d4f89ae845c5e68ebc4bd7f3a6caac9f48a"$
+CONTENT:packages/desktop\-extras/aur\-assets\.json:[0-9]+:base64\-blob:\ \ \ \ "integrity":\ "sha256\-hex:308a3d128223e6b1c3f2cfbe73862de818e9a860455d0625b3420a2609d1ade2"$
+CONTENT:packages/desktop\-extras/aur\-assets\.json:[0-9]+:base64\-blob:\ \ \ \ "integrity":\ "sha256\-hex:33f0582695ae0f9ca93a18706fe5b40d92101a06b2c1c182380a28c6cd3c1dfe"$
+CONTENT:packages/desktop\-extras/aur\-assets\.json:[0-9]+:base64\-blob:\ \ \ \ "integrity":\ "sha256\-hex:37fae675c6da975cbf66af40a0cddfee80f1b8462ccfc3d207855b6504d3b3b8"$
+CONTENT:packages/desktop\-extras/aur\-assets\.json:[0-9]+:base64\-blob:\ \ \ \ "integrity":\ "sha256\-hex:e6a0761a75545754f216450afd7535c74a08f2d92fc572d5b9f935f4a3707ab9"$
+CONTENT:packages/desktop\-extras/aur\-assets\.json:[0-9]+:base64\-blob:\ \ \ \ "integrity":\ "sha256\-hex:89055e5ae4350ae48e3dff273caaf5224b7d0edfa604c036bed003ead16267cc"$
+CONTENT:packages/desktop\-extras/aur/ttfx/PKGBUILD:[0-9]+:base64\-blob:sha256sums=\('2882c7e47011a95f4d136303f7320da71613299840f67f88fd1385ef53d5f2a0'\)$
+CONTENT:packages/desktop\-extras/aur/tensaku/PKGBUILD:[0-9]+:base64\-blob:sha256sums=\('31595a8b4600107a63c1e5889f50f40e1ef832e51cfc038c1a7750b987fd34d0'\)$
+CONTENT:packages/desktop\-extras/aur/tensaku/PKGBUILD:[0-9]+:base64\-blob:\ \ install\ \-Dm644\ man/tensaku\.1\ "\$pkgdir/usr/share/man/man1/tensaku\.1"$
+CONTENT:packages/desktop\-extras/aur/cliamp/PKGBUILD:[0-9]+:base64\-blob:sha256sums=\('51828895ddb5b236fa0a119c1f06102c127065bf44911849c910fe798362fec5'\)$
+CONTENT:packages/desktop\-extras/aur/cliamp/PKGBUILD:[0-9]+:base64\-blob:\ \ \ \ install\ \-Dm644\ Cliamp\.png\ "\$\{pkgdir\}/usr/share/icons/hicolor/512x512/apps/cliamp\.png"$
+CONTENT:packages/desktop\-extras/aur/ttf\-ia\-writer/PKGBUILD:[0-9]+:base64\-blob:_baseurl="\$\{url\}/raw/b337fe1a4c93026268f70e4b2678371f3e89e2ce/"$
+CONTENT:packages/desktop\-extras/aur/ttf\-ia\-writer/PKGBUILD:[0-9]+:base64\-blob:\ \ \ \ \ \ \ \ "\$\{_baseurl\}/iA%20Writer%20Quattro/Static/iAWriterQuattroS\-Bold\.ttf"$
+CONTENT:packages/desktop\-extras/aur/ttf\-ia\-writer/PKGBUILD:[0-9]+:base64\-blob:\ \ \ \ \ \ \ \ "\$\{_baseurl\}/iA%20Writer%20Quattro/Static/iAWriterQuattroS\-BoldItalic\.ttf"$
+CONTENT:packages/desktop\-extras/aur/ttf\-ia\-writer/PKGBUILD:[0-9]+:base64\-blob:\ \ \ \ \ \ \ \ "\$\{_baseurl\}/iA%20Writer%20Quattro/Static/iAWriterQuattroS\-Italic\.ttf"$
+CONTENT:packages/desktop\-extras/aur/ttf\-ia\-writer/PKGBUILD:[0-9]+:base64\-blob:\ \ \ \ \ \ \ \ "\$\{_baseurl\}/iA%20Writer%20Quattro/Static/iAWriterQuattroS\-Regular\.ttf"$
+CONTENT:packages/desktop\-extras/aur/ttf\-ia\-writer/PKGBUILD:[0-9]+:base64\-blob:sha512sums=\('3334653927758b8bf1336a7954191df71bb5d660196c6a61a31aeb0a50480bf48c0fb39ec2e17d211c754f16433a8051c300c21dc2fd1b46f117c837d4d89f02'$
+CONTENT:packages/desktop\-extras/aur/ttf\-ia\-writer/PKGBUILD:[0-9]+:base64\-blob:\ \ \ \ \ \ \ \ \ \ \ \ '994cb5a8e9bc2d7cd79ae08816ed5f631aafcc293559195b26105eaa44f1c8843265e80064e324b2cbf141f125d0dafdf3dcd99de7da5dc954f4e08243c68df4'$
+CONTENT:packages/desktop\-extras/aur/ttf\-ia\-writer/PKGBUILD:[0-9]+:base64\-blob:\ \ \ \ \ \ \ \ \ \ \ \ 'e0d189ea1ca7feb04d9ade3232266e944a4ec7747754c01e3fb8d4d10afdafa739037d76d67e7636a7b1e45da3b9a935d8fa644813d97b07e75c1eb049e9eb1e'$
+CONTENT:packages/desktop\-extras/aur/ttf\-ia\-writer/PKGBUILD:[0-9]+:base64\-blob:\ \ \ \ \ \ \ \ \ \ \ \ '837defdaef7fb5252b33c5a770e78ef655666c86a5891aa6b92e6b540167a834d1b79b444fb58bdd33c83b93bcce0e68ea60c99875c73cd2964b79b12b5e104e'$
+CONTENT:packages/desktop\-extras/aur/ttf\-ia\-writer/PKGBUILD:[0-9]+:base64\-blob:\ \ \ \ \ \ \ \ \ \ \ \ '386eb2ad45c8b1126cbe15d8ace870f409f6ebb8393fa9e788e75ac5cee9de2bfd67d6cf55647abb52361daa7c0a4b2d2a63cfe651bfda99f6c1b9731ac586c7'$
+CONTENT:packages/desktop\-extras/aur/ttf\-ia\-writer/PKGBUILD:[0-9]+:base64\-blob:\ \ \ \ \ \ \ \ \ \ \ \ '9e2322ad3df70572b826f79d43877bd66ef80870125de930756e17b53fc98799cb4336428e1fd3e0333a43d7f814e9eae30a944a5ac6d6440770994f2ba438e1'$
+CONTENT:packages/desktop\-extras/aur/ttf\-ia\-writer/PKGBUILD:[0-9]+:base64\-blob:\ \ \ \ \ \ \ \ \ \ \ \ 'ff08a80847770e14a0d6593f43a31812d2bf609a7dbe8f343a69aa35f687b5ee8ebd3102d8bf9d4b474788e67ad6c7298c1c99ec1d15923845436d1184c16273'$
+CONTENT:packages/desktop\-extras/aur/ttf\-ia\-writer/PKGBUILD:[0-9]+:base64\-blob:\ \ \ \ \ \ \ \ \ \ \ \ '1b0b9c6ad93a98443be677ea447358f23949276ef220795749d4b47f2f7c49b893fef354a1ce3fe533e045860ac351948227da6064d20b0748b7569e0ca254c4'$
+CONTENT:packages/desktop\-extras/aur/ttf\-ia\-writer/PKGBUILD:[0-9]+:base64\-blob:\ \ \ \ \ \ \ \ \ \ \ \ '5f73b50535b2c187cfa70c9d0cfb9d39a5fc1cdca8c85300ada66fc5cb9ce393ad8db3563ef7ba14010328d533e1c1f7d924116d3ac6d619e1b07ba850a9f66c'$
+CONTENT:packages/desktop\-extras/aur/ttf\-ia\-writer/PKGBUILD:[0-9]+:base64\-blob:\ \ \ \ \ \ \ \ \ \ \ \ '120906c5cdf21f32160f595b757b0534fedf605ed7bc441b570b372801e004b5c6adcf07a6b45e086ce2ab3241c31b05baff220b94db192d9933a2668710e653'$
+CONTENT:packages/desktop\-extras/aur/ttf\-ia\-writer/PKGBUILD:[0-9]+:base64\-blob:\ \ \ \ \ \ \ \ \ \ \ \ '7b7ea880b6cc7e73c9401ffd2989cc8c51eb868a696de721771899b89f2a808a609d7cba6750bbc301de92a6fb15f9b0454757d5e80726723154a24571c3b04e'$
+CONTENT:packages/desktop\-extras/aur/ttf\-ia\-writer/PKGBUILD:[0-9]+:base64\-blob:\ \ \ \ \ \ \ \ \ \ \ \ 'd6a5f340ec45bbe9f19247370b4be1d885f5ace6fab1ed9f2ed0966de655c5ae1de08dd774854898ac50129f50e5a2c0f352231930c33d6cbce40ed08521a76c'$
+CONTENT:packages/desktop\-extras/aur/ttf\-ia\-writer/PKGBUILD:[0-9]+:base64\-blob:\ \ \ \ \ \ \ \ \ \ \ \ '45e34601f4eeb57bec8babbc5d82c8a7189db6259d39bd28935cd95bc979b6fb70981047eee7ff34eb203b1f19a9bbf20ba9a5934c832a04dc5a978eeca863f1'$
+CONTENT:packages/desktop\-extras/aur/ttf\-ia\-writer/PKGBUILD:[0-9]+:base64\-blob:\ \ \ \ \ \ \ \ \ \ \ \ '67405a5e5114ef5f1d0981d55a8cd9ebb0b612fa7f180c98d6bf0022c68bc14c3d742c690282900a9f6b745159f675ac03b49cd748147085c1e3e2dba532196b'$
+CONTENT:packages/desktop\-extras/aur/ttf\-ia\-writer/PKGBUILD:[0-9]+:base64\-blob:\ \ \ \ \ \ \ \ \ \ \ \ 'f6e278e790128f9a6061f4e18e37a823a3a562a1fdb3f6d39dcd99eaa046bf0dda5a48fadf3bc6b72a613a4ff67cf0900aecc0eea8f7d673e03471ccbe2d2452'$
+CONTENT:packages/desktop\-extras/aur/ttf\-ia\-writer/PKGBUILD:[0-9]+:base64\-blob:\ \ \ \ \ \ \ \ \ \ \ \ 'f3d5f41f7b293f15f33d5e84dc01e9ca0252bececb7c29d6e862b6421bb2fbb677c520bcf9e20be488a50705d87f26c6abda190ee32c576fac1820df3a6f66b1'\)$
+CONTENT:packages/desktop\-extras/aur/omawrite/PKGBUILD:[0-9]+:base64\-blob:sha256sums=\('b57e418212f9bde0b8a12cff2424a43f15829a56a58fdc49542a0393a430f938'\)$
+CONTENT:packages/desktop\-extras/aur/yay/PKGBUILD:[0-9]+:base64\-blob:sha256sums=\('b77454bce87110180a1b6664c2d260de78124c9894b71101610ba84f551eb0d0'\)$
+CONTENT:packages/desktop\-extras/aur/aether/PKGBUILD:[0-9]+:base64\-blob:sha256sums=\('3234e5138a46699f8f47330ba582244d5063c8356ffaae1458323e4dda02be82'\)$
+CONTENT:packages/desktop\-extras/aur/aether/PKGBUILD:[0-9]+:base64\-blob:sha256sums_x86_64=\('c705a4abef734b17ae37cdbff58a9a796517e6aa5f93ef18b68e3ee99d547ff9'\)$
+CONTENT:packages/desktop\-extras/aur/aether/PKGBUILD:[0-9]+:base64\-blob:sha256sums_aarch64=\('f70195deba008204d58661c3ec1442a16e63f3358b4579969facb0e55dbf63c4'\)$
+CONTENT:packages/desktop\-extras/aur/aether/PKGBUILD:[0-9]+:base64\-blob:\ \ \ \ install\ \-Dm644\ assets/aether\-icon\-512\.png\ "\$\{pkgdir\}/usr/share/icons/hicolor/512x512/apps/aether\.png"$
+CONTENT:packages/tool\-programs/manifest\.json:[0-9]+:base64\-blob:\ \ \ \ \ \ "integrity":\ "sha256\-hex:4de7aa3e25678812e92960de64f7c2aaa1bca1f0f80a3c5e559837e231e1f5c0",$
+CONTENT:packages/tool\-programs/manifest\.json:[0-9]+:base64\-blob:\ \ \ \ \ \ "integrity":\ "sha256\-hex:16c9477a178d69e02a51bf4babe6174e62051314b2cd7f36b1ec5fea47e25a88",$
+CONTENT:packages/tool\-programs/manifest\.json:[0-9]+:base64\-blob:\ \ \ \ \ \ "integrity":\ "sha256\-hex:7f580e1fe06ebffe16ae46cc6881051aca4980db7f654702feefed5651555862",$
+CONTENT:packages/tool\-programs/manifest\.json:[0-9]+:base64\-blob:\ \ \ \ \ \ "integrity":\ "sha256\-hex:7862c86c72f43df3a2d93ddde6f473285b4e2af61b494849846827e513ef6484",$
+CONTENT:packages/tool\-programs/manifest\.json:[0-9]+:base64\-blob:\ \ \ \ \ \ "integrity":\ "sha256\-hex:28028e8adb8266c8b7c00d11950765fbf9a3b9cac77a98b7c92b172646b35f4b",$
+CONTENT:packages/tool\-programs/manifest\.json:[0-9]+:base64\-blob:\ \ \ \ \ \ "integrity":\ "sha256\-hex:29dae24d76bea3bc62d07dd3e60cfc12003de7debbd6b768df9be9c68360174e"$
+CONTENT:packages/tool\-programs/manifest\.json:[0-9]+:base64\-blob:\ \ \ \ \ \ "integrity":\ "sha256\-hex:ca1c8a5c6ffb330e09c18db89c2499fde7c2e04029ff354fb5d7463699a90d56"$
+CONTENT:packages/tool\-programs/manifest\.json:[0-9]+:base64\-blob:\ \ \ \ \ \ "integrity":\ "sha256\-hex:4af272c865fd1886a3ba1ec7729be470901060586ddb36a76d48655cab47d77c"$
+CONTENT:packages/tool\-programs/manifest\.json:[0-9]+:base64\-blob:\ \ \ \ \ \ "integrity":\ "sha256\-hex:5b8928ae1e987b2b1775d1fe62eebabcc08b9fc9940154e0cef27d24941cb7e4"$
+CONTENT:packages/tool\-programs/manifest\.json:[0-9]+:base64\-blob:\ \ \ \ \ \ "integrity":\ "sha256\-hex:749ea8704ce98d300e1d162faf982ed0a3795fab48bd984c1e5c80f2e72b0101",$
+CONTENT:packages/tool\-programs/manifest\.json:[0-9]+:base64\-blob:\ \ \ \ \ \ "integrity":\ "sha256\-hex:529412e7e1f85f5a2c8f5e5fda1604b65ca90ed8acd68dbf286f63384b4baf09"$
+CONTENT:packages/tool\-programs/manifest\.json:[0-9]+:base64\-blob:\ \ \ \ \ \ "integrity":\ "sha256\-hex:57e7e36f82acfc0af7c13f4bdd67ecd000d3d1ec88c3799b5d182c8cd84f7e55"$
+CONTENT:packages/tool\-programs/manifest\.json:[0-9]+:base64\-blob:\ \ \ \ \ \ "integrity":\ "sha256\-hex:5073e1ee39fab0c724d10e6fc852977830b5196aa9b66cde934a65faa8010d6b"$
+CONTENT:packages/tool\-programs/manifest\.json:[0-9]+:base64\-blob:\ \ \ \ \ \ "integrity":\ "sha256\-hex:56161a1849eff501fead19bc7c477ee80f26776bf470fda01c119cc345a1818c"$
+CONTENT:docs/china\-network\.md:[0-9]+:base64\-blob:\|\ aether\ \|\ `https://github\.com/omacom/aether/archive/refs/tags/vVERSION\.tar\.gz`\ and\ `/releases/download/vVERSION/aether\-linux\-arm64`\ \(amd64\ variant\ for\ x86_64\)\ \|$
+
+# Yaru upstream source and verified source-bundle SHA256 pins.
+CONTENT:packages/desktop\-extras/aur\-assets\.json:[0-9]+:base64\-blob:\ \ \ \ "integrity":\ "sha256\-hex:962dfb52113e1dd2858106257c421d1fe89264201e031fe11f79b529cb6a108a"$
+CONTENT:packages/desktop\-extras/aur/yaru\-icon\-theme/PKGBUILD:[0-9]+:base64\-blob:sha256sums=\('ac396932559dd1b515ee4d94d470093dfac407027d9609e756299df9e06c3f7b'\)$
+
+# Verified split CN release attachment SHA256 pins.
+CONTENT:packages/tool\-programs/manifest\.json:[0-9]+:base64\-blob:\ \ \ \ \ \ \ \ \ \ "integrity":\ "sha256\-hex:973f78a3b3c7c14be7087cad5af493e7d17008705e16dfa7e5d18e3f4090ccaf",$
+CONTENT:packages/tool\-programs/manifest\.json:[0-9]+:base64\-blob:\ \ \ \ \ \ \ \ \ \ "integrity":\ "sha256\-hex:219257d78d987fcf9071c11e5b24cff108aa6bbe1f8f1355975f51b4b1374b53",$
+CONTENT:packages/tool\-programs/manifest\.json:[0-9]+:base64\-blob:\ \ \ \ \ \ \ \ \ \ "integrity":\ "sha256\-hex:79f12469df7b1d0bad3fbf660d671697dba2999b2448e58e9fede14cccfe766d",$
+CONTENT:packages/tool\-programs/manifest\.json:[0-9]+:base64\-blob:\ \ \ \ \ \ \ \ \ \ "integrity":\ "sha256\-hex:49ec06f0b3fd7931fead84df0d8fbff2145d51fd48f8db027143bbb4be4b42db",$
+CONTENT:packages/tool\-programs/manifest\.json:[0-9]+:base64\-blob:\ \ \ \ \ \ \ \ \ \ "integrity":\ "sha256\-hex:d2ffbcffbd8d5e71f2653ec7459326003f60db3570d631a662e32b61234a0971",$
+CONTENT:packages/tool\-programs/manifest\.json:[0-9]+:base64\-blob:\ \ \ \ \ \ "integrity":\ "sha256\-hex:57e7e36f82acfc0af7c13f4bdd67ecd000d3d1ec88c3799b5d182c8cd84f7e55",$
+CONTENT:packages/tool\-programs/manifest\.json:[0-9]+:base64\-blob:\ \ \ \ \ \ \ \ \ \ "integrity":\ "sha256\-hex:9487ba61238aaa5ced6851d0ad971eeb9b27222b8f4b78b44984d87dd7c29980",$
+CONTENT:packages/tool\-programs/manifest\.json:[0-9]+:base64\-blob:\ \ \ \ \ \ \ \ \ \ "integrity":\ "sha256\-hex:6bcf721f309590359b2a8ffdc33f1e6070d7b59d1bc9dde936a56b754f1759f4",$
+CONTENT:packages/tool\-programs/manifest\.json:[0-9]+:base64\-blob:\ \ \ \ \ \ "integrity":\ "sha256\-hex:5073e1ee39fab0c724d10e6fc852977830b5196aa9b66cde934a65faa8010d6b",$
+CONTENT:packages/tool\-programs/manifest\.json:[0-9]+:base64\-blob:\ \ \ \ \ \ \ \ \ \ "integrity":\ "sha256\-hex:90cc23e6b23741868b6e8ad477fa8ef98ef250066de5b3cdde44838ef83359a7",$
+CONTENT:packages/tool\-programs/manifest\.json:[0-9]+:base64\-blob:\ \ \ \ \ \ \ \ \ \ "integrity":\ "sha256\-hex:2eeb2fb0fe0e9678c74db46ab4dea2648104d7269cdaab59042f83768b80ca54",$
+
+# Exact reviewed public artifact hashes and upstream Rime commit.
+CONTENT:packages/tool\-programs/manifest\.json:[0-9]+:base64\-blob:\ \ \ \ \ \ "integrity":\ "sha256\-hex:29dae24d76bea3bc62d07dd3e60cfc12003de7debbd6b768df9be9c68360174e",$
+CONTENT:packages/tool\-programs/manifest\.json:[0-9]+:base64\-blob:\ \ \ \ \ \ "integrity":\ "sha256\-hex:ca1c8a5c6ffb330e09c18db89c2499fde7c2e04029ff354fb5d7463699a90d56",$
+CONTENT:packages/tool\-programs/manifest\.json:[0-9]+:base64\-blob:\ \ \ \ \ \ "integrity":\ "sha256\-hex:4af272c865fd1886a3ba1ec7729be470901060586ddb36a76d48655cab47d77c",$
+CONTENT:packages/tool\-programs/manifest\.json:[0-9]+:base64\-blob:\ \ \ \ \ \ "integrity":\ "sha256\-hex:5b8928ae1e987b2b1775d1fe62eebabcc08b9fc9940154e0cef27d24941cb7e4",$
+CONTENT:packages/tool\-programs/manifest\.json:[0-9]+:base64\-blob:\ \ \ \ \ \ "integrity":\ "sha256\-hex:529412e7e1f85f5a2c8f5e5fda1604b65ca90ed8acd68dbf286f63384b4baf09",$
+CONTENT:packages/tool\-programs/manifest\.json:[0-9]+:base64\-blob:\ \ \ \ \ \ "integrity":\ "sha256\-hex:56161a1849eff501fead19bc7c477ee80f26776bf470fda01c119cc345a1818c",$
+CONTENT:packages/tool\-programs/manifest\.json:[0-9]+:base64\-blob:\ \ \ \ \ \ "integrity":\ "sha256\-hex:e67df31a1e665c60135797951ac70b3319470842a7d03c11026ebcfc503a2a8e"$
+CONTENT:packages/desktop\-extras/aur\-assets\.json:[0-9]+:base64\-blob:\ \ \ \ "integrity":\ "sha256\-hex:8717f4bbc044c68be9254bab87fb1e1052c97a3bfeecb0af16878605e59413a7",$
+CONTENT:packages/desktop\-extras/aur\-assets\.json:[0-9]+:base64\-blob:\ \ \ \ "integrity":\ "sha256\-hex:0cb327e86ab831688cba5152210e8d4f89ae845c5e68ebc4bd7f3a6caac9f48a",$
+CONTENT:packages/desktop\-extras/aur\-assets\.json:[0-9]+:base64\-blob:\ \ \ \ "integrity":\ "sha256\-hex:308a3d128223e6b1c3f2cfbe73862de818e9a860455d0625b3420a2609d1ade2",$
+CONTENT:packages/desktop\-extras/aur\-assets\.json:[0-9]+:base64\-blob:\ \ \ \ "integrity":\ "sha256\-hex:8aac095982ee591d14839778a61a52ab7978c3df1c0c35025ad2c32f8c35ba90"$
+CONTENT:packages/desktop\-extras/aur\-assets\.json:[0-9]+:base64\-blob:\ \ \ \ "integrity":\ "sha256\-hex:33f0582695ae0f9ca93a18706fe5b40d92101a06b2c1c182380a28c6cd3c1dfe",$
+CONTENT:packages/desktop\-extras/aur\-assets\.json:[0-9]+:base64\-blob:\ \ \ \ "integrity":\ "sha256\-hex:37fae675c6da975cbf66af40a0cddfee80f1b8462ccfc3d207855b6504d3b3b8",$
+CONTENT:packages/desktop\-extras/aur\-assets\.json:[0-9]+:base64\-blob:\ \ \ \ "integrity":\ "sha256\-hex:e6a0761a75545754f216450afd7535c74a08f2d92fc572d5b9f935f4a3707ab9",$
+CONTENT:packages/desktop\-extras/aur\-assets\.json:[0-9]+:base64\-blob:\ \ \ \ "integrity":\ "sha256\-hex:962dfb52113e1dd2858106257c421d1fe89264201e031fe11f79b529cb6a108a",$
+CONTENT:packages/desktop\-extras/aur\-assets\.json:[0-9]+:base64\-blob:\ \ \ \ "integrity":\ "sha256\-hex:89055e5ae4350ae48e3dff273caaf5224b7d0edfa604c036bed003ead16267cc",$
+CONTENT:packages/desktop\-extras/lazyvim\-assets\.json:[0-9]+:base64\-blob:\ \ \ \ "integrity":\ "sha256\-hex:0f1b3d0652f67974ea6a87abd7bdf1e7c700ca461db583295b048dda96337130",$
+CONTENT:packages/desktop\-extras/aur/rime\-ice/PKGBUILD:[0-9]+:base64\-blob:sha256sums=\('6e6c0e8c00b969690dbc8b394b0a8f8cb0ed3ad348297ad631de1790c693eebb'\)$
+CONTENT:docs/packages\.md:[0-9]+:base64\-blob:\-\ fcitx5、Rime\ 和固定提交\ `da1fbe602e38f26db846fa10120ee64c2b0324c0`\ 的公共\ rime\-ice\ 数据通过校验后的\ Gitee\ 源文件包安装。输入法配置仅在不存在时创建，Shift\ 切换中英文；已有设置和用户词库不覆盖。缺少可选\ rime\-ice\ 时新配置保留简体朙月拼音。$
+
+# Exact public legacy-default SHA256 values and updated public Rime description.
+CONTENT:container/install\.sh:[0-9]+:base64\-blob:\ \ \ \ \ \ db40a8d86e57673cc37d3183c3307c4b98d0ff48839a46ef31d4cad1d400f805\|a99d3741cd4070d9a32b6b301adda1f15273f876ae1b9438e4336db7734e1a5e\)\ known_default=true\ ;;$
+CONTENT:container/install\.sh:[0-9]+:base64\-blob:\ \ \ \ \ \ 29bc687af27a64bbdccda493acf037712ee7d0a58f8b15d5809db755f7e4b78d\|b7f05d77a228ac3394fb3da4a091bca5547656f522bbfb40472bfc3ca8f2b0a2\)\ legacy_default=true\ ;;$
+CONTENT:docs/packages\.md:[0-9]+:base64\-blob:\-\ fcitx5、Rime\ 和固定提交\ `da1fbe602e38f26db846fa10120ee64c2b0324c0`\ 的公共\ rime\-ice\ 数据通过校验后的\ Gitee\ 源文件包安装。输入法配置仅在不存在时创建，Shift\ 切换中英文；已有设置和用户词库不覆盖。缺少可选\ rime\-ice\ 时新配置保留简体朙月拼音；后续安装成功仅自动升级字节完全匹配的安装器备用配置，优先\ rime_ice\ 并保留\ luna_pinyin_simp。安装器执行\ rime_deployer\ 构建，失败会在最终汇总中醒目报告。$

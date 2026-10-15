@@ -5,11 +5,13 @@ Real installation requires a sudo-capable regular user in Arch Linux ARM aarch64
 root must pass `--user NAME`. The default profile is `core`. `full` adds the
 applications in the two `*-full.txt` manifests to the corresponding core lists.
 `--no-aur` skips yay and all AUR builds, and selects the stock Rime schema instead
-of the unavailable rime-ice preset. No real install was run during development.
+of the unavailable rime-ice preset. Release validation is recorded in
+[the versioned validation record](../docs/v0.2.9-validation.md).
 
 The installer logs real runs to `~/.cache/omarchy-alarm/install.log`. Repository
-installation includes a full system upgrade. AUR packages run their upstream
-PKGBUILDs as the regular user; review them before installation. Source and build
+installation includes a full system upgrade. The requested desktop packages
+use fixed, verified source bundles and run makepkg as the regular user.
+Additional global-only AUR packages retain the yay path. Source and build
 caches live below `~/.cache`, including Rust temporary files. The two packages
 `tensaku` and `omawrite` explicitly use `makepkg --ignorearch` because their AUR
 metadata lists x86_64 despite their portable source builds.
@@ -33,11 +35,13 @@ prints a warning. Set a password before using `omarchy toggle idle` or manually
 locking the session. Host services and hardware configuration are not provisioned
 here; desktop launch remains the host launcher's job.
 
-Optional mise installation uses the official https://mise.run installer only when
-`OMARCHY_ALARM_INSTALL_MISE=1` and `--profile full` are both supplied. It runs after
-Omarchy provisioning, so installing mise does not implicitly install the user's
-AI tools, wrappers or secrets. On a later provisioning retry, upstream scripts
-may detect an existing mise installation and perform their standard setup.
+Both profiles install pinned mise and AI programs after desktop provisioning.
+See [program packages and sources](../docs/packages.md). Verified prefixes are
+registered with `mise link`, with commands in `~/.local/bin`; no tool configuration,
+authentication, keys or tokens are installed. Upstream mise provisioning is disabled
+in both modes, including repeat runs. Existing AI settings are preserved, and new
+AI defaults/skills are not seeded. Failures are nonfatal and reported per tool in
+`~/.local/state/omarchy-alarm/tool-programs.txt`.
 
 `extras/build-hyprland-0562-fix.sh` is an optional llvmpipe performance backport,
 never invoked by the installer. It requires the development tools and libraries

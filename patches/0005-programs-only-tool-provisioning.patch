@@ -1,0 +1,71 @@
+From 90fe84ea296fa13b9ff294e26da85ae50a6fe504 Mon Sep 17 00:00:00 2001
+From: omarchy-alarm-nspawn <noreply@example.com>
+Date: Wed, 14 Oct 2026 20:25:00 -0700
+Subject: [PATCH] Keep ARM installer AI tools programs-only in both mirror
+ modes
+
+---
+ bin/omarchy-provision-user | 3 +++
+ install/user/mise-work.sh  | 3 +++
+ install/user/mise.sh       | 3 +++
+ install/user/theme.sh      | 2 +-
+ 4 files changed, 10 insertions(+), 1 deletion(-)
+
+diff --git a/bin/omarchy-provision-user b/bin/omarchy-provision-user
+index 052cfb6..ef60d4b 100755
+--- a/bin/omarchy-provision-user
++++ b/bin/omarchy-provision-user
+@@ -84,6 +84,7 @@ fi
+ # Dev-aware skill symlinks. Cannot live in /etc/skel because OMARCHY_PATH may
+ # point at a dev checkout (omarchy dev link) where the target differs.
+ # Loops every skill directory, so shipping a new one needs no edit here.
++if [[ ${OMARCHY_PROGRAMS_ONLY:-0} != 1 ]]; then
+ mkdir -p ~/.agents/skills ~/.claude/skills ~/.codex/skills ~/.pi/agent/skills ~/.hermes/skills
+ for skill in "$OMARCHY_PATH"/default/agents/skills/*/; do
+   skill=${skill%/}
+@@ -102,6 +103,8 @@ for skill in "$OMARCHY_PATH"/default/agents/skills/*/; do
+   fi
+ done
+ 
++fi
++
+ mkdir -p ~/Downloads ~/Pictures ~/Videos ~/.config/gtk-3.0
+ xdg-user-dirs-update --set TEMPLATES "$HOME"
+ xdg-user-dirs-update --set PUBLICSHARE "$HOME"
+diff --git a/install/user/mise-work.sh b/install/user/mise-work.sh
+index 61a584a..42bd667 100644
+--- a/install/user/mise-work.sh
++++ b/install/user/mise-work.sh
+@@ -1,3 +1,6 @@
++# Programs are installed by the ARM port with pinned sources, without user config.
++return 0 2>/dev/null || exit 0
++
+ # CN installs never run upstream language/tool downloads, even with existing mise.
+ if [[ ${MIRROR:-global} == cn ]]; then return 0 2>/dev/null || exit 0; fi
+ 
+diff --git a/install/user/mise.sh b/install/user/mise.sh
+index 06ee525..fe38f1a 100644
+--- a/install/user/mise.sh
++++ b/install/user/mise.sh
+@@ -1,3 +1,6 @@
++# Programs are installed by the ARM port with pinned sources, without user config.
++return 0 2>/dev/null || exit 0
++
+ # CN installs never run upstream language/tool downloads, even with existing mise.
+ if [[ ${MIRROR:-global} == cn ]]; then return 0 2>/dev/null || exit 0; fi
+ 
+diff --git a/install/user/theme.sh b/install/user/theme.sh
+index 29f370d..5395dc0 100644
+--- a/install/user/theme.sh
++++ b/install/user/theme.sh
+@@ -10,7 +10,7 @@ if [[ ! -s $HOME/.local/state/omarchy/current/theme.name ]]; then
+     omarchy-theme-set "Tokyo Night"
+   fi
+ fi
+-omarchy-theme-set-pi --activate
++if [[ ${OMARCHY_PROGRAMS_ONLY:-0} != 1 ]]; then omarchy-theme-set-pi --activate; fi
+ 
+ mkdir -p ~/.config/btop/themes
+ ln -snf "$HOME/.local/state/omarchy/current/theme/btop.theme" ~/.config/btop/themes/current.theme
+-- 
+2.55.0
