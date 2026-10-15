@@ -415,10 +415,14 @@ STUB
 [[ -z $(cat) ]] || { echo 'host consumed installer input' >&2; exit 99; }
 echo STUB-HOST-EOF
 STUB
+  # This dispatch regression runs inside a simulated protected parent session.
+  # Dedicated tmux regressions exercise creation and the detached runner.
+  printf '#!/bin/bash\nprintf "omarchy-install\\n"\n' > "$work/bin/tmux"
+  chmod +x "$work/bin/tmux"
   reset_nspawn ok
   printf '==> must remain input data\n' > "$work/installer-stdin"
   exec 3< "$work/installer-stdin"
-  if ! env OMARCHY_ALARM_OS_RELEASE="$work/debian-os" OMARCHY_ALARM_ARCH=aarch64 MIRROR=global \
+  if ! env TMUX=fixture TMUX_PANE=%0 OMARCHY_INSTALL_LOG=existing-parent-log OMARCHY_ALARM_OS_RELEASE="$work/debian-os" OMARCHY_ALARM_ARCH=aarch64 MIRROR=global \
       bash "$fake/install.sh" --user tester --rootfs "$work/copy-target" --profile core \
       <&3 > "$work/children.log" 2>&1; then
     fail "installer children failed: $(tail -n 5 "$work/children.log")"

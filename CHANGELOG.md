@@ -1,5 +1,37 @@
 # Changelog
 
+## 0.2.11 — 2026-10-15
+
+- Run Debian one-click installation inside the named `omarchy-install` tmux
+  session before cloning or long host/container work. Install missing tmux
+  with noninteractive apt, using temporary signed mainland sources in CN mode.
+  Terminal standby or SSH disconnection no longer kills the installer process;
+  VM shutdown/reboot still requires rerunning it.
+- Reconnect to an existing session, switch clients from another tmux session,
+  and continue inline when already inside the installation session. Carry
+  tmux context through sudo to avoid nesting. Piped bootstrap and its checkout
+  cleanup now belong to the protected process. Preserve install arguments and
+  settings when an older tmux server is already running.
+- Append stdout/stderr to `~/.local/state/omarchy-alarm/install.log`, retain
+  the completion status and a shell, and print Chinese/English reattach and
+  log-follow instructions. Dry runs and render-only previews never enter tmux.
+- Preserve v0.2.10 keyboard defaults and safe input.lua upgrades, CN omissions
+  of omp/cursor-agent, Gitee assets, and both installation profiles.
+- Add install-session regressions and keep bootstrap/stdin regression coverage.
+  Validation: `tests/run.sh --full` passed 12/12 checks in 1377 seconds (exit 0),
+  including fresh ARM64 installation and second-run idempotence. Real Debian
+  Pad tmux 3.5a verifies auto-attach, reconnect, session reuse, sudo continuity
+  and continued work after the initiating SSH connection ends. See [v0.2.11 validation](docs/v0.2.11-validation.md) for release evidence.
+- Model roles: Codex **gpt-6-astra**, effort **high**, implementation lead;
+  pi **xiaomi/mimo-v2.6-pro-ultraspeed**, real pre-change bootstrap/session
+  analysis and patch review; Claude Code **claude-opus-5-5**, independent
+  final-diff review with `--permission-mode bypassPermissions`. Logs:
+  `~/work/v0211-run/mimo-logs/v0211-analysis.log`, `v0211-review.log`, and
+  `v0211-claude-review.log`. Analysis findings on checkout lifetime, sudo
+  environment loss, stdin safety, exact session matching and dry-run purity
+  are addressed. Both follow-up reviews found no code blockers; zero-argument
+  and PTY attach errors, stale server settings and early logging were fixed.
+
 ## 0.2.10 — 2026-10-15
 
 - Default to `kb_options = "caps:super,compose:ralt"`: Caps Lock acts as Super,

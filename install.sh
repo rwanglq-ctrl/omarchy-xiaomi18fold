@@ -17,6 +17,151 @@
 
 set -euo pipefail
 
+# Shared with host/install.sh by sourcing this file. Keep the piped entry
+# self-contained: the checkout does not exist when session protection starts.
+omarchy_session_apt() (
+  set -e
+  local base mode=${MIRROR:-global}
+  work=
+  local privilege=() options=(-o Acquire::Retries=2 -o Acquire::http::Timeout=15 -o Acquire::https::Timeout=15)
+  (( EUID == 0 )) || privilege=(sudo)
+  if [[ $mode == auto ]]; then
+    if command -v curl >/dev/null &&
+       curl -sSI --connect-timeout 2 --max-time 4 https://github.com >/dev/null 2>&1 &&
+       curl -sSI --connect-timeout 2 --max-time 4 https://raw.githubusercontent.com >/dev/null 2>&1; then
+      mode=global
+    else
+      mode=cn
+    fi
+  fi
+  printf '%s\n' '安装 tmux / Installing tmux (apt, noninteractive)' >&2
+  if [[ $mode == cn ]]; then
+    # Match the git bootstrap: signed Debian metadata, temporary CN sources,
+    # no changes to user sources and no GitHub access (even without CA certs).
+    work=$(mktemp -d "${TMPDIR:-/tmp}/omarchy-tmux-apt.XXXXXX") || return 1
+    trap 'rm -rf -- "$work"' EXIT
+    chmod 755 "$work" || return 1
+    for base in mirrors.tuna.tsinghua.edu.cn mirrors.ustc.edu.cn mirrors.aliyun.com; do
+      printf 'deb http://%s/debian trixie main\n' "$base" > "$work/bootstrap.list" || return 1
+      chmod 644 "$work/bootstrap.list" || return 1
+      if "${privilege[@]}" env DEBIAN_FRONTEND=noninteractive apt-get "${options[@]}" -o APT::Update::Error-Mode=any -o Dir::Etc::sourcelist="$work/bootstrap.list" -o Dir::Etc::sourceparts=- update &&
+         "${privilege[@]}" env DEBIAN_FRONTEND=noninteractive apt-get "${options[@]}" -o Dir::Etc::sourcelist="$work/bootstrap.list" -o Dir::Etc::sourceparts=- install -y --no-install-recommends tmux ca-certificates; then
+        return 0
+      fi
+    done
+    return 1
+  fi
+  "${privilege[@]}" env DEBIAN_FRONTEND=noninteractive apt-get "${options[@]}" -o APT::Update::Error-Mode=any update || return 1
+  "${privilege[@]}" env DEBIAN_FRONTEND=noninteractive apt-get "${options[@]}" install -y --no-install-recommends tmux ca-certificates
+)
+
+omarchy_session_instructions() {
+  local log=$1 prefix=''
+  # A root host child may still be on the invoking user's tmux server.
+  # A fresh terminal must attach as that socket owner, not create a root server.
+  if (( EUID == 0 )) && [[ -z ${TMUX:-} || $(stat -c %u "${TMUX%%,*}" 2>/dev/null || echo 0) == 0 ]]; then
+    prefix='sudo '
+  fi
+  printf '%s\n' \
+    '安装在 tmux 中运行；终端待机/SSH 断线不会终止安装（虚拟机关机或重启除外）。' \
+    'Installation runs in tmux; terminal standby/SSH disconnect will not kill it (VM shutdown/reboot is excluded).' \
+    "重新连接 / Reattach: ${prefix}tmux attach -t omarchy-install" \
+    "日志 / Log: $log" \
+    "跟随日志 / Follow log: ${prefix}tail -f '$log'" >&2
+  if [[ -n ${TMUX_TMPDIR:-} ]]; then
+    printf '自定义 socket 目录 / Custom socket directory: export TMUX_TMPDIR=%q\n' "$TMUX_TMPDIR" >&2
+  fi
+}
+
+omarchy_install_session() {
+  local dry=$1 entry=$2; shift 2
+  (( ! dry )) || return 0
+  if ! command -v tmux >/dev/null; then
+    omarchy_session_apt || { echo '无法安装 tmux / Cannot install tmux; retry after fixing apt' >&2; return 1; }
+  fi
+  command -v tmux >/dev/null || { echo '无法安装 tmux / Cannot install tmux' >&2; return 1; }
+  local current='' state log runner name value
+  local settings='OMARCHY_*|NETWORK_*|MIRROR|TMPDIR|TMUX_TMPDIR|PATH|HOME|USER|LOGNAME|SUDO_USER|SUDO_UID|SUDO_GID|LANG|LC_*|http_proxy|https_proxy|all_proxy|no_proxy|HTTP_PROXY|HTTPS_PROXY|ALL_PROXY|NO_PROXY'
+  if [[ -n ${TMUX:-} ]]; then
+    current=$(tmux display-message -p -t "${TMUX_PANE:-}" '#{session_name}' 2>/dev/null || true)
+  fi
+  if [[ -n ${OMARCHY_INSTALL_LOG:-} && $current != omarchy-install ]]; then
+    echo '安装会话验证失败 / Cannot verify inherited install session; refusing to continue' >&2
+    return 1
+  fi
+  if [[ $current == omarchy-install ]]; then
+    # The root host child inherits the same output descriptors and log marker.
+    if [[ -z ${OMARCHY_INSTALL_LOG:-} ]]; then
+      state=$HOME/.local/state/omarchy-alarm
+      (umask 077; mkdir -p "$state"; touch "$state/install.log")
+      export OMARCHY_INSTALL_LOG=$state/install.log
+      exec > >(tee -a "$OMARCHY_INSTALL_LOG") 2>&1
+      printf '\n=== Install started: %s ===\n' "$(date -Is)"
+    fi
+    omarchy_session_instructions "$OMARCHY_INSTALL_LOG"
+    return 0
+  fi
+  state=$HOME/.local/state/omarchy-alarm
+  log=$state/install.log
+  omarchy_session_instructions "$log"
+  if ! tmux has-session -t '=omarchy-install' 2>/dev/null; then
+    (umask 077; mkdir -p "$state"; touch "$log")
+    runner=$(mktemp "$state/install-run.XXXXXX")
+    # A new session on an existing server otherwise inherits stale environment.
+    # Save only install settings, never unrelated API keys or login credentials.
+    {
+      printf '#!/usr/bin/env bash\nset -uo pipefail\n'
+      # Remove stale settings inherited from an older server, including settings
+      # absent in this invocation. TERM belongs to tmux and is not overridden.
+      printf 'while IFS= read -r name; do case $name in %s) unset "$name" ;; esac; done < <(compgen -e)\n' "$settings"
+      while IFS= read -r name; do
+        case $name in
+          OMARCHY_*|NETWORK_*|MIRROR|TMPDIR|TMUX_TMPDIR|PATH|HOME|USER|LOGNAME|SUDO_USER|SUDO_UID|SUDO_GID|LANG|LC_*|http_proxy|https_proxy|all_proxy|no_proxy|HTTP_PROXY|HTTPS_PROXY|ALL_PROXY|NO_PROXY)
+            [[ $name != OMARCHY_INSTALL_LOG ]] || continue
+            value=${!name}; printf 'export %s=%q\n' "$name" "$value" ;;
+        esac
+      done < <(compgen -e)
+      printf 'export OMARCHY_INSTALL_LOG=%q\n' "$log"
+      printf 'exec 3>&1 4>&2\nexec > >(tee -a "$OMARCHY_INSTALL_LOG") 2>&1\nlog_pid=$!\n'
+      printf 'printf "\\n=== Install started: %%s ===\\n" "$(date -Is)"\n'
+      if [[ -z $entry ]]; then
+        # Reconstruct the fully-read curl|bash entry before any clone or long work.
+        # Its bootstrap/cleanup now belongs to the detached process, not the client.
+        declare -f omarchy_session_apt omarchy_session_instructions omarchy_install_session omarchy_entry
+        printf '( set -e; omarchy_entry'
+      else
+        printf '( bash %q' "$entry"
+      fi
+      if (( $# )); then printf ' %q' "$@"; fi
+      printf ' ) </dev/null\nrc=$?\n'
+      printf 'printf "\\n安装退出码 / Install exit status: %%s\\n" "$rc"\n'
+      printf 'rm -f -- %q\n' "$runner"
+      printf 'echo "安装结束；可在此重跑安装命令。/ Finished; rerun the install command here."\n'
+      printf 'exec 1>&3 2>&4 3>&- 4>&-\nwait "$log_pid" || echo "Log writer failed" >&2\nunset OMARCHY_INSTALL_LOG\n'
+      printf 'exec bash --noprofile --norc -i\n'
+    } > "$runner"
+    # Create detached first: losing the client while attaching cannot kill work.
+    # Exact targets avoid matching similarly named user sessions.
+    if ! tmux new-session -d -s omarchy-install -c "$PWD" bash "$runner"; then
+      rm -f -- "$runner"
+      tmux has-session -t '=omarchy-install' 2>/dev/null || return 1
+    fi
+  else
+    printf '%s\n' '使用已有安装会话，本次参数未重新执行 / Using existing install session; new arguments were not executed' >&2
+  fi
+  if [[ -n ${TMUX:-} ]]; then
+    tmux switch-client -t '=omarchy-install' || true
+  elif [[ -t 1 ]]; then
+    # main uses /dev/null. Reuse the real terminal fd: tmux rejects /dev/tty
+    # as its tty name, even though opening that device succeeds.
+    tmux attach -t '=omarchy-install' <&1
+  fi
+  printf '%s\n' '已交接至会话；安装结果请查看日志。/ Session handoff complete; check the log for the install result.' >&2
+  # Returning would start a second installer in the original, fragile terminal.
+  exit 0
+}
+
+omarchy_entry() {
 # Everything lives in functions called on the last line, so a piped script is read in full
 # before anything runs (and nothing below can swallow the rest of it from stdin).
 
@@ -181,6 +326,11 @@ main() {
 
   case ${MIRROR:-global} in cn|global|auto) ;; *) die "MIRROR must be cn, global or auto" 2 ;; esac
   detect_os
+  if [[ $OS == debian ]]; then
+    local entry=${BASH_SOURCE[0]:-}
+    [[ -f $entry ]] && entry=$(realpath "$entry") || entry=''
+    omarchy_install_session "$dry" "$entry" "${all_args[@]}"
+  fi
   REPO_DIR=""
   find_repo "${all_args[@]}"
   # Piped bootstrap runs the complete child installer (or prints a dry plan).
@@ -241,7 +391,7 @@ run_debian() {
   if (( dry )); then
     "${host_cmd[@]}" --dry-run
   else
-    "${sudo[@]}" env MIRROR="$MIRROR" "${host_cmd[@]}" </dev/null
+    "${sudo[@]}" env MIRROR="$MIRROR" TMUX="${TMUX:-}" TMUX_PANE="${TMUX_PANE:-}" TMUX_TMPDIR="${TMUX_TMPDIR:-}" OMARCHY_INSTALL_LOG="${OMARCHY_INSTALL_LOG:-}" TMPDIR="${TMPDIR:-/tmp}" "${host_cmd[@]}" </dev/null
   fi
 
   local chome=/home/$user
@@ -278,3 +428,9 @@ run_debian() {
 }
 
 main "$@" </dev/null
+}
+
+# Sourcing exposes only the session helpers and entry function to host/install.sh.
+if [[ -z ${BASH_SOURCE[0]:-} || ${BASH_SOURCE[0]} == "$0" ]]; then
+  omarchy_entry "$@"
+fi

@@ -41,6 +41,20 @@
 curl -fsSL https://raw.githubusercontent.com/rwanglq-ctrl/omarchy-xiaomipad9pm/main/install.sh | OMARCHY_ALARM_REF=main bash
 ```
 
+安装会自动进入 `omarchy-install` tmux 会话。终端待机或 SSH 断线后，回到 Debian 宿主运行：
+
+```bash
+tmux attach -t omarchy-install
+# 也可在另一个终端查看日志：
+tail -f ~/.local/state/omarchy-alarm/install.log
+```
+
+重跑安装命令会连接已有会话；安装结束后可在该会话中重跑命令更新。
+没有交互终端时安装在后台继续。虚拟机关机/重启会停止安装，开机后需重跑命令。
+以 root/sudo 启动时，请按屏幕提示使用 `sudo tmux attach` 和对应日志路径。
+若 sudo 要求密码，请在会话中完成提示后再离开；无人值守安装需要免密 sudo。
+`--dry-run` 不安装或进入 tmux。
+
 ### 国内网络安装
 
 以下命令使用 Gitee 源码和国内软件包镜像；请核对安装器打印的版本和源码 SHA。Gitee 由维护者单独同步，版本可能落后于 GitHub。
@@ -224,6 +238,22 @@ Menu names follow HyperOS (Android 16) and may differ slightly between versions.
 ```bash
 curl -fsSL https://raw.githubusercontent.com/rwanglq-ctrl/omarchy-xiaomipad9pm/main/install.sh | OMARCHY_ALARM_REF=main bash
 ```
+
+The installer opens the `omarchy-install` tmux session. After terminal standby or an SSH disconnect,
+return to the Debian host and run:
+
+```bash
+tmux attach -t omarchy-install
+# Follow progress from another terminal:
+tail -f ~/.local/state/omarchy-alarm/install.log
+```
+
+Rerunning the installer reconnects to the existing session; after completion, rerun the command
+inside that session to update. Without an interactive terminal, installation continues in the background.
+VM shutdown/reboot stops the install; rerun the command after booting.
+For a root/sudo invocation, use the printed `sudo tmux attach` command and log path.
+If sudo asks for a password, answer inside the session before leaving; unattended installation requires passwordless sudo.
+`--dry-run` neither installs nor enters tmux.
 
 Or clone and run it:
 

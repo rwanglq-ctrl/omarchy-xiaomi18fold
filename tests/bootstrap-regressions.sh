@@ -32,12 +32,13 @@ if [ "$1" = clone ]; then
 fi
 exec "$REAL_GIT" "$@"
 ''');wrapper.chmod(0o755)
+    script('tmux',"printf 'omarchy-install\\n'\n")
     script('sudo','[ "$1" != -n ] || shift\nexec "$@"\n')
     script('curl','printf "%s\\n" "$*" >> "$CURL_LOG"\nexit 22\n')
     script('apt-get','''echo "$*" >> "$APT_LOG"
 case "$*" in *install*) cp "$WRAPPER" "$MOCK_BIN/git";; esac
 ''')
-    env=dict(os.environ,PATH=str(bins),TMPDIR=str(scratch),OMARCHY_ALARM_OS_RELEASE=str(osfile),OMARCHY_ALARM_ARCH='aarch64',OMARCHY_ALARM_REPO='file://'+str(repo),REAL_GIT=realgit,FIXTURE=str(repo),GIT_LOG=str(w/'git.log'),CURL_LOG=str(w/'curl.log'),APT_LOG=str(w/'apt.log'),FAIL_CLONE=str(w/'fail'),WRAPPER=str(wrapper),MOCK_BIN=str(bins),MIRROR='global')
+    env=dict(os.environ,TMUX="fixture",TMUX_PANE="%0",OMARCHY_INSTALL_LOG="existing-parent-log",PATH=str(bins),TMPDIR=str(scratch),OMARCHY_ALARM_OS_RELEASE=str(osfile),OMARCHY_ALARM_ARCH='aarch64',OMARCHY_ALARM_REPO='file://'+str(repo),REAL_GIT=realgit,FIXTURE=str(repo),GIT_LOG=str(w/'git.log'),CURL_LOG=str(w/'curl.log'),APT_LOG=str(w/'apt.log'),FAIL_CLONE=str(w/'fail'),WRAPPER=str(wrapper),MOCK_BIN=str(bins),MIRROR='global')
     def run(ref='main',dry=False,**changes):
         e=dict(env,OMARCHY_ALARM_REF=ref);e.update(changes)
         for key in [k for k,v in e.items() if v is None]:del e[key]

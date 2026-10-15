@@ -92,6 +92,14 @@ while (( $# )); do
   shift
 done
 
+# Protect direct host invocation before network probes, sudo, or long work.
+# The one-click parent passes TMUX and its active log through sudo explicitly.
+if (( ! DRY_RUN )) && [[ -z $RENDER_DIR ]]; then
+  # shellcheck source=../install.sh
+  source "$SCRIPT_DIR/../install.sh"
+  omarchy_install_session 0 "$SCRIPT_DIR/install.sh" "${ORIG_ARGS[@]}"
+fi
+
 # shellcheck source=../lib/network.sh
 source "$SCRIPT_DIR/../lib/network.sh"
 export NETWORK_DRY_RUN=$DRY_RUN
@@ -181,7 +189,7 @@ fi
 if (( ! DRY_RUN )) && [[ $EUID -ne 0 ]]; then
   command -v sudo >/dev/null || die "must run as root (sudo is not installed)"
   log "re-running with sudo"
-  exec sudo env MIRROR="$MIRROR" bash "${BASH_SOURCE[0]}" "${ORIG_ARGS[@]}" --user "$TARGET_USER"
+  exec sudo env MIRROR="$MIRROR" TMUX="${TMUX:-}" TMUX_PANE="${TMUX_PANE:-}" TMUX_TMPDIR="${TMUX_TMPDIR:-}" OMARCHY_INSTALL_LOG="${OMARCHY_INSTALL_LOG:-}" TMPDIR="${TMPDIR:-/tmp}" bash "${BASH_SOURCE[0]}" "${ORIG_ARGS[@]}" --user "$TARGET_USER"
 fi
 
 (( DRY_RUN )) && log "DRY RUN — nothing will be changed"
