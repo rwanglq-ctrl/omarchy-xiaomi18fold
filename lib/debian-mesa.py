@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Stage the Debian 13 host's Mesa ABI alongside Arch; never replace pacman files."""
+"""Stage the Debian 13 host's Mesa ABI alongside Arch; never replace pacman files.
+
+Installed by omarchy-alarm-nspawn as ~/.local/bin/arch-mesa-check for --verify.
+"""
 import hashlib
 import json
 import os
@@ -12,6 +15,79 @@ import tempfile
 
 def output(*args):
     return subprocess.check_output(args, text=True, env=dict(os.environ, LC_ALL='C'))
+
+
+def sha256(path):
+    digest = hashlib.sha256()
+    with open(path, 'rb') as stream:
+        for block in iter(lambda: stream.read(1 << 20), b''):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+VENDOR = 'egl/50_debian_mesa.json'
+VENDOR_ICD = {'file_format_version': '1.0.0',
+              'ICD': {'library_path': '/opt/debian-mesa/lib/libEGL_mesa.so.0'}}
+
+
+def damaged(prefix):
+    """Return the first staged file that does not match the manifest, else None.
+
+    A truncated libLLVM (Pad, v0.2.6) still loads, then kills Hyprland with
+    SIGBUS before init: no crash report and no flushed log. Hashing every
+    staged file takes about 0.3 s on the Pad.
+    """
+    entries = json.loads((prefix / 'manifest.json').read_text())
+    if not isinstance(entries, list) or not entries:
+        return 'manifest.json'
+    # EGL is pointed at this vendor file, so a lost one must not pass either.
+    try:
+        vendor = json.loads((prefix / VENDOR).read_text())
+    except (OSError, ValueError):
+        return VENDOR
+    if vendor != VENDOR_ICD:
+        return VENDOR
+    for entry in entries:
+        name = entry['file']
+        if not name.startswith('lib/') or '..' in Path(name).parts:
+            return name
+        path = prefix / name
+        if path.is_symlink() or not path.is_file() or sha256(path) != entry['sha256']:
+            return name
+    return None
+
+
+def copy_durable(source, destination):
+    # The Android Terminal VM can stop before ext4 writeback. Flush each copy
+    # before it can be activated, so a stop cannot publish a short file.
+    shutil.copyfile(source, destination)
+    destination.chmod(0o644)
+    with open(destination, 'rb') as stream:
+        os.fsync(stream.fileno())
+
+
+def write_durable(path, text):
+    with open(path, 'w') as stream:
+        stream.write(text)
+        stream.flush()
+        os.fsync(stream.fileno())
+
+
+def cache_matches(prefix, manifest, vendor_json):
+    try:
+        return ((prefix / 'manifest.json').read_text() == manifest and
+                (prefix / 'egl/50_debian_mesa.json').read_text() == vendor_json and
+                damaged(prefix) is None)
+    except (OSError, ValueError, KeyError, TypeError):
+        return False
+
+
+def sync_directory(path):
+    fd = os.open(path, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
 
 
 def install(root, lib=Path('/usr/lib/aarch64-linux-gnu')):
@@ -50,39 +126,64 @@ def install(root, lib=Path('/usr/lib/aarch64-linux-gnu')):
         package = output('dpkg-query', '-S', str(real)).split(': ', 1)[0]
         version = output('dpkg-query', '-W', '-f=${binary:Package} ${Version} ${source:Package} ${source:Version}\n', package).strip()
         provenance.append(dict(file='lib/' + name, source=str(real), package=version,
-                               sha256=hashlib.sha256(real.read_bytes()).hexdigest()))
+                               sha256=sha256(real)))
     manifest = json.dumps(provenance, indent=2) + '\n'
-    vendor_json = json.dumps({'file_format_version': '1.0.0',
-                              'ICD': {'library_path': '/opt/debian-mesa/lib/libEGL_mesa.so.0'}}) + '\n'
+    vendor_json = json.dumps(VENDOR_ICD) + '\n'
     digest = hashlib.sha256((manifest + vendor_json).encode()).hexdigest()[:16]
-    dest = opt / ('debian-mesa-' + digest)
+    base = 'debian-mesa-' + digest
+    # Generations of the same content: the plain name, or base-N after a repair.
+    generations = [p for p in opt.iterdir() if p.is_dir() and not p.is_symlink() and
+                   (p.name == base or (p.name.startswith(base + '-') and p.name[len(base) + 1:].isdigit()))]
+    dest = next((p for p in sorted(generations) if cache_matches(p, manifest, vendor_json)), None)
+    # Temporaries of an install that was killed or stopped mid-way.
+    for leftover in opt.glob('.debian-mesa-*'):
+        if leftover.is_dir() and not leftover.is_symlink():
+            shutil.rmtree(leftover)
+        else:
+            leftover.unlink()
     stage = Path(tempfile.mkdtemp(prefix='.debian-mesa-', dir=opt))
     try:
-        (stage / 'lib/gbm').mkdir(parents=True)
-        (stage / 'egl').mkdir()
-        for name, path in files.items():
-            shutil.copyfile(path, stage / 'lib' / name)
-            (stage / 'lib' / name).chmod(0o644)
-        (stage / 'egl/50_debian_mesa.json').write_text(vendor_json)
-        (stage / 'manifest.json').write_text(manifest)
-        for directory in [stage, stage / 'lib', stage / 'lib/gbm', stage / 'egl']:
-            directory.chmod(0o755)
-        (stage / 'egl/50_debian_mesa.json').chmod(0o644)
-        (stage / 'manifest.json').chmod(0o644)
-        if not dest.exists():
+        if dest is None:
+            (stage / 'lib/gbm').mkdir(parents=True)
+            (stage / 'egl').mkdir()
+            for name, path in files.items():
+                copy_durable(path, stage / 'lib' / name)
+            write_durable(stage / VENDOR, vendor_json)
+            write_durable(stage / 'manifest.json', manifest)
+            for directory in [stage, stage / 'lib', stage / 'lib/gbm', stage / 'egl']:
+                directory.chmod(0o755)
+            (stage / VENDOR).chmod(0o644)
+            (stage / 'manifest.json').chmod(0o644)
+            # Do not publish a copy made while host package files were changing.
+            broken = damaged(stage)
+            if broken:
+                raise RuntimeError('Mesa copy differs from its source: ' + str(stage / broken))
+            for directory in [stage / 'lib/gbm', stage / 'lib', stage / 'egl', stage]:
+                sync_directory(directory)
+            # v0.2.6 activated copies unverified; one on the Pad lost the end of
+            # libLLVM. Never reuse or overwrite a damaged generation in place:
+            # publish a new one, so the active link always names a whole copy.
+            name, generation = base, 1
+            while (opt / name).exists() or (opt / name).is_symlink():
+                generation += 1
+                name = base + '-' + str(generation)
+            if generations:
+                print('Replacing damaged cached Mesa copy /opt/' + ', /opt/'.join(sorted(p.name for p in generations)))
+            dest = opt / name
             stage.rename(dest)
-        # Do not reactivate a damaged cached copy or publish a copy made while
-        # host package files were changing underneath us.
-        if (dest / 'manifest.json').read_text() != manifest or (dest / 'egl/50_debian_mesa.json').read_text() != vendor_json:
-            raise RuntimeError('cached Mesa manifest differs: ' + str(dest))
-        for entry in provenance:
-            installed = dest / entry['file']
-            if installed.is_symlink() or hashlib.sha256(installed.read_bytes()).hexdigest() != entry['sha256']:
-                raise RuntimeError('Mesa hash mismatch: ' + str(installed))
+            sync_directory(opt)
+            broken = damaged(dest)
+            if broken:
+                raise RuntimeError('Mesa hash mismatch: ' + str(dest / broken))
         # Atomic activation; an existing compositor can keep its mapped libraries.
         link = stage if not stage.exists() else stage / 'active'
         os.symlink(dest.name, link)
         os.replace(link, target)
+        sync_directory(opt)
+        # Only now, with the link on a verified copy, drop damaged generations.
+        for old in generations:
+            if old != dest and not cache_matches(old, manifest, vendor_json):
+                shutil.rmtree(old)
         print('Debian Mesa staged at /opt/' + dest.name + '; provenance: /opt/debian-mesa/manifest.json')
     finally:
         if stage.is_dir():
@@ -91,10 +192,36 @@ def install(root, lib=Path('/usr/lib/aarch64-linux-gnu')):
             stage.unlink()
 
 
+# Exit codes are distinct from Python's own 1/2 so a broken verifier is never
+# read as "intact" or "damaged".
+INTACT, DAMAGED, OPERATOR_OWNED, ABSENT = 0, 10, 11, 12
+
+
+def verify(prefix):
+    """arch-mesa-check --verify PREFIX: 0 intact, 10 damaged, 11 operator-owned, 12 absent."""
+    if not prefix.exists() and not prefix.is_symlink():
+        print('absent: ' + str(prefix) + ' (Arch Mesa is used)')
+        return ABSENT
+    if not prefix.is_symlink() and prefix.is_dir() and not (prefix / 'manifest.json').exists():
+        print('unverified: operator-owned ' + str(prefix) + ' has no manifest')
+        return OPERATOR_OWNED
+    try:
+        broken = damaged(prefix)
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        broken = 'manifest.json (' + type(exc).__name__ + ')'
+    if broken:
+        print('damaged: ' + broken)
+        return DAMAGED
+    print('intact: ' + str(prefix))
+    return INTACT
+
+
 if __name__ == '__main__':
+    if len(sys.argv) == 3 and sys.argv[1] == '--verify':
+        sys.exit(verify(Path(sys.argv[2])))
     if len(sys.argv) != 2 or not Path(sys.argv[1]).is_absolute() or Path(sys.argv[1]) == Path('/'):
-        sys.exit('Usage: debian-mesa.py /absolute/arch/rootfs')
+        sys.exit('Usage: debian-mesa.py /absolute/arch/rootfs | debian-mesa.py --verify PREFIX')
     try:
         install(Path(sys.argv[1]))
-    except (OSError, RuntimeError, subprocess.CalledProcessError) as exc:
+    except (OSError, RuntimeError, ValueError, subprocess.CalledProcessError) as exc:
         sys.exit('Debian Mesa staging failed: ' + str(exc))

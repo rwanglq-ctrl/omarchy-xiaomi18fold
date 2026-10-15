@@ -120,7 +120,14 @@ PYCODE
   if grep -Fw "$forbidden" "$work"/*.log; then echo 'Dry-run exposes owner account'; exit 1; fi
   HOME="$work" bash "$ROOT/host/install.sh" --render-only "$work/rendered" --user testuser --rootfs /tmp/x >/dev/null
   local f
-  for f in "$work"/rendered/bin/*; do bash -n "$f"; done
+  for f in "$work"/rendered/bin/*; do
+    # arch-mesa-check is the rendered Python verifier; the rest are Bash.
+    if [[ $(head -1 "$f") == '#!/usr/bin/env python3' ]]; then
+      python3 -I -c 'import ast, sys; ast.parse(open(sys.argv[1]).read(), sys.argv[1])' "$f"
+    else
+      bash -n "$f"
+    fi
+  done
 }
 check_lua() {
   need config/hypr/hyprland.lua

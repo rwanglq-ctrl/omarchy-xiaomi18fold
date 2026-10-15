@@ -189,6 +189,20 @@ case "$*" in *restart*|*stop*) exit 90;; esac
     assert 'history: stage=registration-failed historical-attempt' in p.stdout
     assert 'history: nsenter -t 2169 -a runuser /bin/sh -s -- Virtual-1' in p.stdout
     assert not any(line.startswith('stage=') for line in p.stdout.splitlines())
+    # Pad v0.2.6/0.2.7 signature of a pre-init signal death (SIGBUS from a
+    # truncated staged libLLVM) is named before any other probe output.
+    attempt=home/'.local/state/omarchy-alarm/arch-session-current.log'
+    attempt.write_text("ERR from start-hyprland ]: Couldn't waitpid for hyprland: No child processes\nHyprland exit cleanly.\n")
+    p=subprocess.run([str(bins/'arch-diag'),'--stdout'],env=dict(env,OMARCHY_SESSION_LOG=str(attempt)),capture_output=True,text=True,check=True)
+    assert p.stdout.index('hyprland-signal-death:') < p.stdout.index('staged Debian Mesa integrity') < p.stdout.index('Hyprland namespace logs'),p.stdout
+    assert 'absent: ' in p.stdout,p.stdout
+    p=subprocess.run([str(bins/'arch-diag'),'--stdout'],env=dict(env,OMARCHY_SESSION_LOG=str(prior)),capture_output=True,text=True,check=True)
+    assert 'hyprland-signal-death' not in p.stdout
+    # A manual arch-diag (no session variable) inspects the newest attempt.
+    os.utime(prior,(100,100))
+    p=subprocess.run([str(bins/'arch-diag'),'--stdout'],env=env,capture_output=True,text=True,check=True)
+    assert 'hyprland-signal-death: in arch-session-current.log' in p.stdout,p.stdout
+    attempt.unlink()
     (w/'machine').touch()
     old_enter=(mocks/'nsenter').read_text()
     for failed in ['nsenter','runuser']:

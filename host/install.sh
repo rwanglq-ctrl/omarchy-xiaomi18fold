@@ -26,7 +26,7 @@ ALARM_KEY="68B3 537F 39A3 13B3 E574  D067 7719 3F15 2BDB E6A6"
 ALARM_KEY=${ALARM_KEY// /}
 CACHE_DIR=${OMARCHY_ALARM_CACHE:-/var/cache/omarchy-alarm-nspawn}
 DEFAULT_HOME_BINDS="Downloads Pictures Videos Work"
-LAUNCHERS=(arch-hyprland archbox archsh hypr-switch hypr-session arch-output arch-diag arch-selftest arch-machine-id arch-log)
+LAUNCHERS=(arch-hyprland archbox archsh hypr-switch hypr-session arch-output arch-diag arch-selftest arch-machine-id arch-log arch-mesa-check)
 APT_PACKAGES=(systemd-container seatd curl ca-certificates libarchive-tools sudo git gnupg kmod util-linux psmisc weston python3 libegl-mesa0 libgbm1 libgl1-mesa-dri libllvm19 libedit2 libxml2 libz3-4)
 MACHINE=arch-desktop
 

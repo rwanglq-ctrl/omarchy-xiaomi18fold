@@ -29,8 +29,23 @@ software=auto; modifiers=auto; atomic=auto
 mesa=""
 libpath=""
 mesa_source=arch
+mesa_check=''
 if [ ! -e "$HOME/.config/arch-use-arch-mesa" ] && sudo -n test -e "$rootfs/opt/debian-mesa/lib/libgbm.so.1"; then
-  mesa_source=debian
+  # A damaged staged library (a truncated libLLVM on the Pad) kills Hyprland with
+  # SIGBUS before init, leaving no crash report. Verify it; use Arch Mesa if bad.
+  mesa_check=$(sudo -n python3 -I "$HOME/.local/bin/arch-mesa-check" --verify "$rootfs/opt/debian-mesa" 2>&1)
+  mesa_rc=$?
+  if (( mesa_rc == 10 )); then
+    mesa_source=arch-fallback
+    stage debian-mesa-damaged "${mesa_check//$'\n'/ }; using Arch Mesa; rerun the installer to repair"
+  elif (( mesa_rc == 0 || mesa_rc == 11 )); then
+    mesa_source=debian
+  else
+    mesa_source=arch-fallback
+    stage debian-mesa-unverified "rc=$mesa_rc ${mesa_check//$'\n'/ }; using Arch Mesa"
+  fi
+fi
+if [[ $mesa_source == debian ]]; then
   libpath=/opt/debian-mesa/lib
   mesa="--setenv=GBM_BACKENDS_PATH=/opt/debian-mesa/lib/gbm
     --setenv=__EGL_VENDOR_LIBRARY_FILENAMES=/opt/debian-mesa/egl/50_debian_mesa.json"

@@ -25,6 +25,14 @@ v0.2.7 的 `launcher-status` 保留原始退出码；旧版 `registration-failed
 
 ## Hyprland 无法启动
 
+### 症状：约 1 秒后退出，`Couldn't waitpid for hyprland: No child processes`
+
+这表示 Hyprland 在初始化完成前被信号杀死；随后的 `Hyprland exit cleanly.` 并不是正常退出。
+SIGBUS/SIGKILL 不会生成崩溃报告，hyprland.log 末尾也会丢失。v0.2.6 在实机 Pad 上的原因是
+`/opt/debian-mesa` 中被截断的 `libLLVM.so.19.1`（加载即 SIGBUS）。v0.2.8 起每次启动校验暂存的
+Debian Mesa；损坏时记录 `stage=debian-mesa-damaged` 并改用 Arch Mesa。重新运行安装器即可修复缓存副本。
+`arch-diag` 开头的 `hyprland-signal-death` 与 `staged Debian Mesa integrity` 两行给出这一判断。详见 [v0.2.8 实机证据](v0.2.8-validation.md)。
+
 ### 症状：黑屏或闪退
 
 v0.2.4 不再固定 Virtual-1；连接器编号可能改变。Debian 宿主运行

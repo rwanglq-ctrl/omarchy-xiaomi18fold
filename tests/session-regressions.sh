@@ -261,6 +261,27 @@ fi
     for value in ['LD_LIBRARY_PATH=/opt/debian-mesa/lib','GBM_BACKENDS_PATH=/opt/debian-mesa/lib/gbm','__EGL_VENDOR_LIBRARY_FILENAMES=/opt/debian-mesa/egl/50_debian_mesa.json']:
         assert '--setenv='+value in args
     assert 'mesa=debian launch=/usr/bin/start-hyprland' in result[3]
+    # v0.2.8 Pad root cause: a truncated staged libLLVM killed Hyprland with
+    # SIGBUS before init. A manifest mismatch must select Arch Mesa, visibly.
+    llvm=b'complete LLVM'; (mesa/'libLLVM.so.19.1').write_bytes(llvm)
+    (fs/'opt/debian-mesa/manifest.json').write_text(json.dumps([dict(file='lib/libLLVM.so.19.1',sha256=hashlib.sha256(llvm).hexdigest())]))
+    (fs/'opt/debian-mesa/egl').mkdir()
+    (fs/'opt/debian-mesa/egl/50_debian_mesa.json').write_text(json.dumps({'file_format_version':'1.0.0','ICD':{'library_path':'/opt/debian-mesa/lib/libEGL_mesa.so.0'}}))
+    reset(); result=run(); assert result[0]==0,result
+    assert 'mesa=debian launch=' in result[3] and 'debian-mesa-damaged' not in result[3],result[3]
+    (mesa/'libLLVM.so.19.1').write_bytes(llvm[:4])
+    reset(); result=run(); assert result[0]==0,result
+    args=(w/'nspawn-args').read_text()
+    assert 'stage=debian-mesa-damaged damaged: lib/libLLVM.so.19.1; using Arch Mesa' in result[3],result[3]
+    assert 'mesa=arch-fallback launch=' in result[3] and 'GBM_BACKENDS_PATH=' not in args and 'LD_LIBRARY_PATH=' not in args
+    (mesa/'libLLVM.so.19.1').write_bytes(llvm)
+    # A verifier that cannot run (Python exits 2 for a missing script) must not
+    # be read as intact or damaged: use Arch Mesa and say the copy is unverified.
+    checker=bins/'arch-mesa-check'; checker.rename(w/'checker-saved')
+    reset(); result=run(); assert result[0]==0,result
+    assert 'stage=debian-mesa-unverified rc=2 ' in result[3] and 'mesa=arch-fallback' in result[3],result[3]
+    (w/'checker-saved').rename(checker)
+    print('PASS damaged Debian Mesa: manifest mismatch or a failed verifier falls back to Arch Mesa with a stage line',flush=True)
     prefix=fs/'opt/hyprland-test/bin'; prefix.mkdir(parents=True)
     for name in ['Hyprland','start-hyprland']:
         (prefix/name).write_text('#!/bin/sh\n'); (prefix/name).chmod(0o755)

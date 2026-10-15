@@ -80,5 +80,14 @@ case "$*" in *install*) cp "$WRAPPER" "$MOCK_BIN/git";; esac
     assert p.returncode==0 and 'CHECKED_OUT='+first in p.stdout,p.stderr
     assert 'Dir::Etc::sourcelist=' in (w/'apt.log').read_text()
     assert not list(scratch.iterdir())
-print('PASS bootstrap: real branch/tag/SHA, apt git bootstrap, no apt, no archives, Gitee-only CN branch/tag/SHA, auto CN, offline dry-run')
+    # Pad v0.2.7 upgrade: a failing inner installer made the EXIT trap read an
+    # out-of-scope local ("tmp: unbound variable"), masking its status and
+    # leaking the checkout. The inner status and cleanup must both survive.
+    (repo/'install.sh').write_text('#!/bin/bash\necho inner-failed >&2\nexit 3\n')
+    git('add','.');git('commit','-qm','failing')
+    p=run('main')
+    assert p.returncode==3 and 'inner-failed' in p.stderr,(p.returncode,p.stderr)
+    assert 'unbound variable' not in p.stderr,p.stderr
+    assert not list(scratch.iterdir()),'failed bootstrap leaked its checkout'
+print('PASS bootstrap: real branch/tag/SHA, apt git bootstrap, no apt, no archives, Gitee-only CN branch/tag/SHA, auto CN, offline dry-run, failing inner status + cleanup')
 PY

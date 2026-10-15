@@ -65,7 +65,10 @@ find_repo() {
 
 bootstrap() (
   # This subshell owns the checkout and removes it on success, failure or signal.
-  local tmp revision base clone_ref
+  # tmp is subshell-global, not local: the EXIT trap can run after the function
+  # frame is gone (errexit on the last command), where a local is unbound.
+  local revision base clone_ref
+  tmp=
   local privilege=() apt_options=(-o Acquire::Retries=2 -o Acquire::http::Timeout=15 -o Acquire::https::Timeout=15)
   if [[ ${MIRROR:-global} == auto ]] && (( ! dry )); then
     if command -v curl >/dev/null &&

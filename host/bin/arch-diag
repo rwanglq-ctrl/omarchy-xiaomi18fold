@@ -17,6 +17,21 @@ echo 'omarchy-alarm-nspawn v@VERSION@ display diagnostics (private, unfiltered)'
 date -u
 uname -srmo
 printf 'selected mode: '; cat "$HOME/.config/hypr-session-mode" 2>/dev/null || :
+# start-hyprland waits only for a normal exit. When Hyprland dies from a signal
+# before init it prints these two lines and returns 0, which looks clean.
+# A manual run inspects the newest attempt; the session passes its own log.
+attempt=${OMARCHY_SESSION_LOG:-$(ls -t "$state"/arch-session-*.log 2>/dev/null | head -1)}
+if [[ -n $attempt ]] && grep -aq "Couldn't waitpid for hyprland: No child processes" "$attempt" 2>/dev/null; then
+  echo "hyprland-signal-death: in ${attempt##*/}, Hyprland was killed by a signal before init; its \"exit cleanly\" is not a clean exit."
+  echo 'SIGBUS/SIGKILL leave no crash report and lose the end of hyprland.log. Check the Mesa integrity line below first.'
+fi
+echo '--- staged Debian Mesa integrity (damaged copy => SIGBUS before init) ---'
+if [[ -e $HOME/.config/arch-use-arch-mesa ]]; then
+  echo 'not used: ~/.config/arch-use-arch-mesa selects Arch Mesa'
+else
+  # Exits 10-12 (damaged, operator-owned, absent) are results, not probe failures.
+  timeout --kill-after=1 10 sudo -n python3 -I "$HOME/.local/bin/arch-mesa-check" --verify '@ROOTFS@/opt/debian-mesa' 2>&1 || :
+fi
 echo '--- Hyprland namespace logs and sockets (before all other probes) ---'
 "$HOME/.local/bin/arch-output" --logs 2>&1 || echo 'namespace log probe failed'
 echo '--- persistent Hyprland crash reports (snapshots; compare modification time to this attempt) ---'

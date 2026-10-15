@@ -1,5 +1,49 @@
 # Changelog
 
+## 0.2.8 — 2026-10-15
+
+- Root cause, confirmed on the failing Pad itself: the staged
+  `/opt/debian-mesa/lib/libLLVM.so.19.1` had been truncated to exactly 104 MiB
+  (the host file is about 117.5 MiB).
+  - Loading it raised SIGBUS while Aquamarine created the GBM allocator.
+  - SIGBUS leaves no crash report, and the end of the buffered hyprland.log was
+    lost.
+  - start-hyprland printed `Couldn't waitpid … No child processes` and
+    "exit cleanly".
+  - Pad A/B with one change per run: baseline failed; Arch Mesa only passed;
+    repairing only that file passed.
+- Staging is now durable and self-repairing:
+  - every library and JSON file is fsynced;
+  - the stage is verified before it is published;
+  - a damaged cache is replaced by a new generation through an atomic symlink
+    switch, and the damaged copy is removed only afterwards;
+  - temporaries left by a killed install are cleaned up.
+  - v0.2.7 refused the damaged cache on every reinstall.
+- Each launch verifies the staged Mesa with `arch-mesa-check --verify`
+  (libraries and EGL vendor file, about 0.3 s). If the copy is damaged or cannot
+  be verified, the launch logs `stage=debian-mesa-damaged` or `-unverified` and
+  uses Arch Mesa.
+- `arch-diag` now begins with `hyprland-signal-death` and the Mesa integrity
+  result.
+- Bootstrap: a failing inner installer no longer prints
+  `tmp: unbound variable`, hides its status or leaks its checkout.
+- Verified on the Pad by installing the release tree over the damaged state:
+  - the installer repaired the cache;
+  - `arch-selftest` reached `output-ready`;
+  - the real `weston.service` path reached `output-ready`;
+  - a grim capture shows the wallpaper and bar;
+  - DRM debugfs shows Hyprland's framebuffer on an active CRTC.
+  See [validation](docs/v0.2.8-validation.md).
+- Provenance:
+  - Claude Code **claude-opus-5-5** (lead): Pad evidence, root cause, A/B, fix
+    and Pad verification.
+  - pi **xiaomi/mimo-v2.6-pro-ultraspeed**: signal analysis in
+    `/tmp/mimo-logs/v028-mimo-signal-analysis.log`, patch review in
+    `v028-mimo-patch-review.log` (5 findings plus 2 minor, all fixed).
+  - Codex **gpt-6-astra**: independent review in `v028-codex-review.log`
+    (2 P2 findings, fixed) and `v028-codex-review-2.log`.
+  - Raw local logs are not bundled.
+
 ## 0.2.7 — 2026-10-14
 
 - Keep README limited to installation and usage in Chinese and English; retain
