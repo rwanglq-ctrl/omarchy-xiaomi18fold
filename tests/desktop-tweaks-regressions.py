@@ -32,7 +32,7 @@ with tempfile.TemporaryDirectory() as temporary:
     assert (home / '.config/hypr/.luarc.json').read_text() == '{}'
     subprocess.run(['bash', '-euc', script], env=env, check=True)
     input_file = home / '.config/hypr/input.lua'
-    assert 'kb_options = "compose:caps"' in input_file.read_text()
+    assert 'kb_options = "caps:super,compose:ralt"' in input_file.read_text()
     rime_file = home / '.local/share/fcitx5/rime/default.custom.yaml'
     preset = rime_file.read_text()
     assert preset.index('schema: rime_ice') < preset.index('schema: luna_pinyin_simp')
@@ -42,10 +42,36 @@ with tempfile.TemporaryDirectory() as temporary:
     legacy_input = (ROOT / 'tests/fixtures/v028/input.lua').read_text()
     legacy_rime = (ROOT / 'tests/fixtures/v028/default.custom.yaml').read_text()
     interim_input = '-- Device defaults only: retain the upstream keyboard layout and modifiers.\nhl.config({ input = { touchpad = { tap_to_click = true } } })\n-- AVF translates touchpad scrolling into oversized wheel events.\nhl.device({ name = "crosvm-virtio-mouse-0", scroll_factor = 0.01 })\n'
-    for previous_input in (legacy_input, interim_input):
-        input_file.write_text(previous_input)
+    v029_input = (ROOT / 'tests/fixtures/v029/input.lua').read_bytes()
+    default_input = (ROOT / 'config/hypr/input.lua').read_bytes()
+    baseline = home / '.local/state/omarchy-alarm/input.lua'
+    dist = baseline.with_suffix('.lua.dist')
+    for previous_input in (legacy_input.encode(), interim_input.encode(), v029_input):
+        # No recorded baseline: exercise the exact historical-default allowlist.
+        baseline.unlink(missing_ok=True)
+        input_file.write_bytes(previous_input)
         subprocess.run(['bash', '-euc', script], env=env, check=True)
         assert input_file.read_text() == (ROOT / 'config/hypr/input.lua').read_text()
+    # A current default remains recognized after state loss.
+    baseline.unlink()
+    result = subprocess.run(['bash', '-euc', script], env=env, check=True, capture_output=True, text=True)
+    assert 'Preserved edited/symlinked' not in result.stdout
+    assert baseline.read_bytes() == default_input and not dist.exists()
+    # Even a one-byte edit of v0.2.9 must be preserved, with a fresh .dist.
+    for modified in (v029_input + b' ', v029_input.replace(b'compose:caps', b'compose:ralt')):
+        input_file.write_bytes(modified)
+        dist.unlink(missing_ok=True)
+        subprocess.run(['bash', '-euc', script], env=env, check=True)
+        assert input_file.read_bytes() == modified
+        assert dist.read_bytes() == default_input
+    # A symlink to an exact historical default is still user-owned.
+    linked = home / 'linked-input.lua'; linked.write_bytes(v029_input)
+    input_file.unlink(); input_file.symlink_to(linked)
+    dist.unlink()
+    subprocess.run(['bash', '-euc', script], env=env, check=True)
+    assert input_file.is_symlink() and linked.read_bytes() == v029_input
+    assert dist.read_bytes() == default_input
+    input_file.unlink()
     for previous_rime in (legacy_rime, ''.join(line for line in legacy_rime.splitlines(keepends=True) if '__include:' not in line and 'schema: rime_ice' not in line)):
         rime_file.write_text(previous_rime)
         subprocess.run(['bash', '-euc', script], env=env, check=True)
@@ -83,7 +109,7 @@ with tempfile.TemporaryDirectory() as temporary:
     input_file.unlink()
     input_file.write_text((upstream / 'config/hypr/input.lua').read_text())
     subprocess.run(['bash', '-euc', script], env=env, check=True)
-    assert 'kb_options = "compose:caps"' in input_file.read_text()
+    assert 'kb_options = "caps:super,compose:ralt"' in input_file.read_text()
     # No schema package: seed usable stock fallback, then upgrade on retry.
     rime_file.unlink(); (rime_data / 'rime_ice.schema.yaml').unlink()
     subprocess.run(['bash', '-euc', script], env=env, check=True)
@@ -92,9 +118,9 @@ with tempfile.TemporaryDirectory() as temporary:
     subprocess.run(['bash', '-euc', script], env=env, check=True)
     assert rime_file.read_text() == preset
 print('PASS fresh/repeated input defaults, custom/symlink preservation, Rime fallback upgrade/deployment/failure summary')
-# Personal keyboard options, service startup and CPU thread overrides are absent.
+# Shift-breaking options, service startup and CPU thread overrides are absent.
 config = '\n'.join(p.read_text() for p in (ROOT / 'config/hypr').glob('*.lua'))
-for forbidden in ('LP_NUM_THREADS', 'caps:super', 'shift:both_capslock_cancel', 'ts-proxy'):
+for forbidden in ('LP_NUM_THREADS', 'shift:both_capslock_cancel', 'ts-proxy'):
     assert forbidden not in config
 for helper in ('remote-access-autostart', 'wayvnc-autostart', 'upgrade-all'):
     assert 'o.launch_on_start("' + helper + '")' not in config

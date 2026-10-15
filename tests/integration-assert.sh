@@ -21,7 +21,10 @@ checkout="$home/.local/share/omarchy"
 [[ $(readlink /usr/share/omarchy) == "$checkout" ]]
 for binary in Hyprland quickshell fcitx5 foot; do command -v "$binary"; done
 [[ -f $home/.config/hypr/hyprland.lua ]]
-grep -Fq 'kb_options = "compose:caps"' "$home/.config/hypr/input.lua"
+grep -Fq 'kb_options = "caps:super,compose:ralt"' "$home/.config/hypr/input.lua"
+if grep -Fq 'shift:both_capslock_cancel' "$home/.config/hypr/input.lua"; then
+  echo 'Forbidden Shift-swallowing keyboard option' >&2; exit 1
+fi
 grep -Fq 'schema: luna_pinyin_simp' "$home/.local/share/fcitx5/rime/default.custom.yaml"
 grep -Fq 'OK Rime schema deployment' "$home/.local/state/omarchy-alarm/desktop-config.txt"
 [[ -s $home/.local/share/fcitx5/rime/build/luna_pinyin_simp.prism.bin ]]

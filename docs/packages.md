@@ -190,13 +190,13 @@ NetworkManager, plymouth, sddm, systemd, sudoers, sysctl 等）。
 - llvmpipe 关闭阴影、模糊、动画、透明、圆角和色彩管理；后台 5 FPS，启用 FIFO workaround。不设置 `LP_NUM_THREADS`（参考 Pad 实测设置后帧率从 107 降至 54）。
 - `GSETTINGS_BACKEND=keyfile`、用户目录下的 `TMUX_TMPDIR`、fcitx 环境变量和 `chi_sim+eng` OCR；CJK SC 字体优先；截图分享使用 `hyprland-share-picker`。
 - fcitx5、Rime 和固定提交 `da1fbe602e38f26db846fa10120ee64c2b0324c0` 的公共 rime-ice 数据通过校验后的 Gitee 源文件包安装。输入法配置仅在不存在时创建，Shift 切换中英文；已有设置和用户词库不覆盖。缺少可选 rime-ice 时新配置保留简体朙月拼音；后续安装成功仅自动升级字节完全匹配的安装器备用配置，优先 rime_ice 并保留 luna_pinyin_simp。安装器执行 rime_deployer 构建，失败会在最终汇总中醒目报告。
-- 键盘默认使用 `kb_options = "compose:caps"`，避免上游 `shift:both_capslock_cancel` 吞掉 fcitx5 Shift 切换。重复安装仅更新未修改的安装器/上游默认 input.lua；用户编辑和符号链接保留，新默认另存 `~/.local/state/omarchy-alarm/input.lua.dist` 供人工合并。
+- 键盘默认使用 `kb_options = "caps:super,compose:ralt"`（Caps Lock = Super，右 Alt = Compose），避免上游 `shift:both_capslock_cancel` 吞掉 fcitx5 Shift 切换。重复安装仅更新未修改的安装器/上游默认 input.lua；用户编辑和符号链接保留，新默认另存 `~/.local/state/omarchy-alarm/input.lua.dist` 供人工合并。
 - 桌面通过 `dbus-run-session` 使用独立会话总线，避免宿主总线缺失或 portal 名称冲突；`host-run` 明确连接宿主总线（宿主需运行用户总线）。
 - 会话启动 portal 与锁屏输入法复位助手；btop/About 窗口 1200×800、LocalSend 浮动规则；计算器 qalculate；Super+Ctrl+Enter 启动 herdr（下载失败时需先重试工具安装）。
-- 不复制个人 Caps 映射、代理、主题、应用或路径。远程访问、wayvnc 和 upgrade-all 不安装为自动启动项，必须由用户自行选择启用。
+- 不复制个人键盘配置、代理、主题、应用或路径。远程访问、wayvnc 和 upgrade-all 不安装为自动启动项，必须由用户自行选择启用。
 - **已知未包含**：Hyprland 0.55 / 0.56.2 damage-clip 自编译补丁尚无本项目可验证的 ARM64 发布物及回归证据；本版使用仓库 Hyprland，不能声称解决该特定打字延迟。后续在完成构建与 Pad A/B 测试后再集成。
 
-README 保留通用工具清单，本节为 CN 模式的具体例外：CN 模式不安装 omp 和 cursor-agent，也不会删除此前已有的副本。新装 CN 系统运行 README 中这两个 `--version` 命令会提示找不到命令。安装摘要明确标记此政策性跳过。
+与 README 中的模式说明一致：CN 模式不安装 omp 和 cursor-agent，也不会删除此前已有的副本。新装 CN 系统运行 README 中这两个 `--version` 命令会提示找不到命令。安装摘要明确标记此政策性跳过。
 在 global/海外网络可单独安装：
 
 ```sh

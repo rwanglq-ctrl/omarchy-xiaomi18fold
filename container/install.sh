@@ -226,15 +226,16 @@ install_input_defaults() {
   local known_default=false hash
   if [[ -f $target && ! -L $target ]]; then
     hash=$(sha256sum "$target" | cut -d ' ' -f1)
-    # Exact v0.2.8 blob, then the interim v0.2.9 Pad overlay (no user edits).
+    # Exact v0.2.0–v0.2.8 blob, interim v0.2.9 overlay, and released v0.2.9.
     case "$hash" in
-      db40a8d86e57673cc37d3183c3307c4b98d0ff48839a46ef31d4cad1d400f805|a99d3741cd4070d9a32b6b301adda1f15273f876ae1b9438e4336db7734e1a5e) known_default=true ;;
+      db40a8d86e57673cc37d3183c3307c4b98d0ff48839a46ef31d4cad1d400f805|a99d3741cd4070d9a32b6b301adda1f15273f876ae1b9438e4336db7734e1a5e|6ad1625ed77bda8fc6b0cd0921929ef6f796017a8a523b3af420a7600e5f2abe) known_default=true ;;
     esac
   fi
   # Only replace absent or byte-identical installer/upstream defaults. Never
   # follow a user symlink or overwrite an edited input file on repeat installs.
   if [[ ! -L $target ]] && { [[ ! -e $target ]] ||
       cmp -s "$target" "$baseline" ||
+      cmp -s "$target" "$ROOT/config/hypr/input.lua" ||
       cmp -s "$target" "$OMARCHY_PATH/config/hypr/input.lua" ||
       $known_default; }; then
     install -Dm644 "$ROOT/config/hypr/input.lua" "$target"

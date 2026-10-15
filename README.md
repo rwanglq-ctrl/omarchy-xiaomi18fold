@@ -71,10 +71,13 @@ MIRROR=cn bash ./install.sh --profile core
 Omarchy v4.0.4 已随源码附带，取得本项目源码后无需另行从 GitHub 下载上游。
 国内模式使用 Gitee 上固定版本、校验过的构建源码和发布物。未镜像的
 额外 AUR 应用会明确跳过；Rime 保留可用的默认中文输入方案。
-core 和 full 均安装 mise、Claude Code、Codex、pi、opencode、herdr、crush、
+全球（非 CN）模式下，core 和 full 均安装 mise、Claude Code、Codex、pi、opencode、herdr、crush、
 Cursor Agent、oh-my-pi（`omp`）、GitHub CLI（`gh`）及参考工具清单中的其余程序，
 只安装程序，不导入配置、
 密钥、令牌或登录信息。请在 Arch 桌面终端运行这些命令并自行登录。
+**国内模式（`MIRROR=cn`）不安装 oh-my-pi（`omp`）和 Cursor Agent（`cursor-agent`），已有副本会保留。**
+如需这两个程序，请在可访问全球网络时，不带 `MIRROR=cn` 重新运行上方 GitHub 一键安装命令
+（若曾导出该变量，先运行 `unset MIRROR`；也可显式指定 `MIRROR=global`）。
 可选工具失败不会中断桌面安装，重新运行安装命令可重试；结果见
 `~/.local/state/omarchy-alarm/tool-programs.txt`。
 安装器创建 `~/Work` 和标准用户目录，保留已有文件及目录偏好。
@@ -112,6 +115,9 @@ cd omarchy-xiaomipad9pm
 |------|------|
 | `core` | Omarchy 桌面 + fcitx5/Rime 中文输入 + mise 和 AI 工具程序 |
 | `full` | core + 额外应用（如 qalculate-gtk 等 aarch64 可用的工具） |
+
+键盘默认：**Caps Lock = Super，右 Alt = Compose**；Shift 切换中英文。
+更新时保留用户修改过的键盘配置。
 
 ## 切换会话
 
@@ -239,10 +245,13 @@ curl -fsSL https://gitee.com/zenbardofsuhe/omarchy-xiaomipad9pm/raw/main/install
 Gitee is synchronized separately and may lag GitHub. Check the printed version and source SHA.
 To resume or update, rerun the same installation command with the same user and rootfs path.
 The installer reuses the existing container and cached downloads, and does not restart the display.
-Both profiles install mise, Claude Code, Codex, pi, opencode, herdr, crush,
+In global (non-CN) mode, both profiles install mise, Claude Code, Codex, pi, opencode, herdr, crush,
 Cursor Agent, oh-my-pi (`omp`), GitHub CLI (`gh`), and the remaining reference
 tool inventory as programs only. CN builds use pinned source assets from Gitee;
 extra AUR applications without mirrored sources are reported as skipped.
+**CN mode (`MIRROR=cn`) does not install oh-my-pi (`omp`) or Cursor Agent (`cursor-agent`); existing copies are preserved.**
+To install them later, rerun the GitHub one-command installer above in global mode without
+`MIRROR=cn` (run `unset MIRROR` first if exported, or explicitly set `MIRROR=global`).
 No tool settings, credentials, keys, tokens, or sign-in sessions are installed.
 CN program downloads use npmmirror and checksum-verified assets in the project’s
 Gitee release. There is no GitHub proxy or GitHub fallback.
@@ -261,13 +270,17 @@ pi --version
 opencode --version
 herdr --version
 crush --version
+gh --version
+# Available after a global-mode install:
 cursor-agent --version
 omp --version
-gh --version
 ```
 
 Commands are available from `~/.local/bin`; sign in separately with each tool.
 Installation results are in `~/.local/state/omarchy-alarm/tool-programs.txt`.
+
+Keyboard defaults: **Caps Lock = Super, Right Alt = Compose**; Shift toggles Chinese/English.
+Updates preserve user-modified keyboard configuration.
 
 ### Switching desktops and selftest
 

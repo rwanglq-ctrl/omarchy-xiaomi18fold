@@ -176,6 +176,6 @@ CONTENT:packages/desktop\-extras/aur/rime\-ice/PKGBUILD:[0-9]+:base64\-blob:sha2
 CONTENT:docs/packages\.md:[0-9]+:base64\-blob:\-\ fcitx5、Rime\ 和固定提交\ `da1fbe602e38f26db846fa10120ee64c2b0324c0`\ 的公共\ rime\-ice\ 数据通过校验后的\ Gitee\ 源文件包安装。输入法配置仅在不存在时创建，Shift\ 切换中英文；已有设置和用户词库不覆盖。缺少可选\ rime\-ice\ 时新配置保留简体朙月拼音。$
 
 # Exact public legacy-default SHA256 values and updated public Rime description.
-CONTENT:container/install\.sh:[0-9]+:base64\-blob:\ \ \ \ \ \ db40a8d86e57673cc37d3183c3307c4b98d0ff48839a46ef31d4cad1d400f805\|a99d3741cd4070d9a32b6b301adda1f15273f876ae1b9438e4336db7734e1a5e\)\ known_default=true\ ;;$
+CONTENT:container/install\.sh:[0-9]+:base64\-blob:\ \ \ \ \ \ db40a8d86e57673cc37d3183c3307c4b98d0ff48839a46ef31d4cad1d400f805\|a99d3741cd4070d9a32b6b301adda1f15273f876ae1b9438e4336db7734e1a5e\|6ad1625ed77bda8fc6b0cd0921929ef6f796017a8a523b3af420a7600e5f2abe\)\ known_default=true\ ;;$
 CONTENT:container/install\.sh:[0-9]+:base64\-blob:\ \ \ \ \ \ 29bc687af27a64bbdccda493acf037712ee7d0a58f8b15d5809db755f7e4b78d\|b7f05d77a228ac3394fb3da4a091bca5547656f522bbfb40472bfc3ca8f2b0a2\)\ legacy_default=true\ ;;$
 CONTENT:docs/packages\.md:[0-9]+:base64\-blob:\-\ fcitx5、Rime\ 和固定提交\ `da1fbe602e38f26db846fa10120ee64c2b0324c0`\ 的公共\ rime\-ice\ 数据通过校验后的\ Gitee\ 源文件包安装。输入法配置仅在不存在时创建，Shift\ 切换中英文；已有设置和用户词库不覆盖。缺少可选\ rime\-ice\ 时新配置保留简体朙月拼音；后续安装成功仅自动升级字节完全匹配的安装器备用配置，优先\ rime_ice\ 并保留\ luna_pinyin_simp。安装器执行\ rime_deployer\ 构建，失败会在最终汇总中醒目报告。$

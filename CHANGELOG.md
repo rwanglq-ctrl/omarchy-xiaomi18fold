@@ -1,5 +1,36 @@
 # Changelog
 
+## 0.2.10 — 2026-10-15
+
+- Default to `kb_options = "caps:super,compose:ralt"`: Caps Lock acts as Super,
+  Right Alt as Compose. Caps cannot serve both roles. Keep
+  `shift:both_capslock_cancel` excluded so fcitx5 receives Shift to switch IME.
+- Upgrade only byte-identical known defaults, including the released v0.2.9
+  `compose:caps` file even when its recorded baseline is missing. Preserve
+  user edits and symlinks; write the new default to
+  `~/.local/state/omarchy-alarm/input.lua.dist` for manual merging.
+  Recognize the current default after baseline loss as well.
+- Clarify in both README languages that `MIRROR=cn` skips omp (oh-my-pi) and
+  cursor-agent; rerun the installer globally without `MIRROR=cn` to add them.
+  Document Caps Lock / Right Alt defaults and retain one troubleshooting link.
+- Add the frozen v0.2.9 fixture and regressions for upgrades without a baseline,
+  modified defaults, symlinks and `.dist` contents; retain the Shift-option ban.
+- Validation: `tests/run.sh --full` passed all 12 checks (1491 seconds, exit 0),
+  including fresh ARM64 installation and second-run idempotence. Test Pad CN
+  reinstall preserved the hand-applied input file and wrote the correct `.dist`;
+  native temporary HOME verified v0.2.9 and upstream upgrades. After an explicit
+  live backup and option-only edit, Hyprland had no config errors and real
+  Wayland left/right Shift toggled English → Chinese → English.
+  See [v0.2.10 validation](docs/v0.2.10-validation.md).
+- Model roles: Codex **gpt-6-astra**, effort **high**, implementation lead;
+  pi **xiaomi/mimo-v2.6-pro-ultraspeed**, pre-change code-path/upgrade analysis
+  and patch review; Claude Code **claude-opus-5-5**, independent final-diff
+  review with `--permission-mode bypassPermissions`. Logs:
+  `~/work/v0210-run/mimo-logs/v0210-analysis.log`, `v0210-review.log`, and
+  `v0210-claude-review.log`. Analysis findings on lost baselines, `.dist`
+  assertions and obsolete keyboard wording are addressed. Both code reviews
+  found no release blockers; final evidence and documentation were reviewed.
+
 ## 0.2.9 — 2026-10-15
 
 - Both core and full install mise plus the reference Pad’s Claude Code, Codex,
