@@ -1,0 +1,14 @@
+# fold-ux9: touch "unstick" daemon (lifts touch slots whose lift Android swallowed, so hyprgrass
+# cannot get stuck cancelling every touch). See ~/fold-fix-tools/fold-touch-flushd.
+# Install: systemctl --user daemon-reload; systemctl --user enable --now fold-touch-flushd
+# Off: systemctl --user disable --now fold-touch-flushd
+[Unit]
+Description=fold touchscreen unstick daemon (fold-ux9)
+
+[Service]
+ExecStart=%h/.local/bin/fold-touch-flushd
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=default.target

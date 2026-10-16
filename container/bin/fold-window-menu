@@ -1,0 +1,225 @@
+#!/usr/bin/env python3
+# fold-window-menu — touch window-management popup for the fold (Hyprland 0.56 Lua).
+# Adapted from gmaxxxie/omarchy-tablet-experience's tablet window-manage popup
+# (texp-window: close / move-to-workspace), rewritten as a standalone GTK4
+# layer-shell overlay so it needs no Quickshell bar plugin or evdev daemon.
+#
+# Usage: fold-window-menu [toggle|open|close]     (default: toggle)
+# Opened by: 3-finger long-press (hypr/touch.lua), ALT+SHIFT+W / SUPER+SHIFT+W,
+#            the dock's pinned "窗口管理" entry, or this command.
+#
+# Target = the window that was active when the popup opened (captured once).
+# The overlay takes no keyboard focus, so the target keeps focus underneath.
+# Tapping the dimmed backdrop or ✕ closes it. Every action closes it.
+# fold-ux9: it also closes by itself after IDLE_CLOSE_S seconds, and every close (✕, backdrop,
+# action, timeout, SIGTERM from `close`/toggle) asks the phone host to lift touch slots whose lift
+# Android swallowed (fold-touch-flush-req), so a lost lift cannot leave hyprgrass cancelling every touch.
+import json
+import os
+import re
+import signal
+import subprocess
+import sys
+
+PIDFILE = os.path.join(os.environ.get("XDG_RUNTIME_DIR", "/tmp"), "fold-window-menu.pid")
+LAYER_LIB = "/usr/lib/libgtk4-layer-shell.so"
+IDLE_CLOSE_S = 20
+
+
+def running_pid():
+    try:
+        pid = int(open(PIDFILE).read().strip())
+        os.kill(pid, 0)
+        if b"fold-window-menu" in open(f"/proc/{pid}/cmdline", "rb").read():
+            return pid
+    except (OSError, ValueError):
+        pass
+    return None
+
+
+action = sys.argv[1] if len(sys.argv) > 1 else "toggle"
+if action not in ("toggle", "open", "close"):
+    sys.exit("usage: fold-window-menu [toggle|open|close]")
+pid = running_pid()
+if pid:
+    if action != "open":
+        os.kill(pid, signal.SIGTERM)
+    sys.exit(0)
+if action == "close":
+    sys.exit(0)
+
+# gtk4-layer-shell must be loaded before libwayland-client; re-exec with LD_PRELOAD.
+# GSK_RENDERER=cairo: GTK4's GL renderer draws nothing in the AVF VM (EGL dri2 fails).
+if LAYER_LIB not in os.environ.get("LD_PRELOAD", "") and os.path.exists(LAYER_LIB):
+    env = dict(os.environ, LD_PRELOAD=(LAYER_LIB + " " + os.environ.get("LD_PRELOAD", "")).strip())
+    env.setdefault("GSK_RENDERER", "cairo")
+    os.execve(sys.executable, [sys.executable, os.path.abspath(__file__), "open"], env)
+
+import gi  # noqa: E402
+
+gi.require_version("Gtk", "4.0")
+gi.require_version("Gdk", "4.0")
+gi.require_version("Gtk4LayerShell", "1.0")
+from gi.repository import Gdk, GLib, Gtk  # noqa: E402
+from gi.repository import Gtk4LayerShell as LayerShell  # noqa: E402
+
+
+def hypr_json(what):
+    try:
+        return json.loads(subprocess.run(["hyprctl", "-j", what], capture_output=True, text=True, timeout=3).stdout or "null")
+    except Exception:
+        return None
+
+
+def lua(expr):
+    subprocess.run(["hyprctl", "eval", expr], capture_output=True, timeout=3)
+
+
+def spawn(cmd):
+    subprocess.Popen(cmd, shell=True, start_new_session=True,
+                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
+aw = hypr_json("activewindow") or {}
+TARGET = aw.get("address", "") if isinstance(aw, dict) else ""
+if not re.fullmatch(r"0x[0-9a-fA-F]{6,16}", TARGET or "") or str((aw.get("workspace") or {}).get("name", "")).startswith("special:"):
+    TARGET = ""
+_mon = next((m for m in (hypr_json("monitors") or []) if m.get("focused")), {})
+SCREEN_W, SCREEN_H = _mon.get("width", 0), _mon.get("height", 1)
+TITLE = (aw.get("class") or "") + ("  ·  " + aw["title"] if aw.get("title") else "") if TARGET else "（没有活动窗口）"
+
+
+def on_target(dsp):
+    """Focus the captured window, then run a dispatcher on it."""
+    if not TARGET:
+        return
+    lua(f"hl.dispatch(hl.dsp.focus({{ window = 'address:{TARGET}' }}))")
+    lua(f"hl.dispatch({dsp})")
+
+
+def move_to(ws):
+    if TARGET:
+        lua(f"hl.dispatch(hl.dsp.window.move({{ window = 'address:{TARGET}', workspace = '{int(ws)}', follow = false }}))")
+
+
+CSS = b"""
+window.fold-wm { background: rgba(0,0,0,0.45); }
+.card { background: #1e1e2e; border-radius: 18px; padding: 18px; border: 2px solid #585b70; }
+.title { color: #cdd6f4; font-size: 17px; font-weight: bold; }
+.sub { color: #a6adc8; font-size: 13px; }
+.sect { color: #89b4fa; font-size: 13px; margin-top: 6px; }
+button.big { min-height: 64px; min-width: 120px; font-size: 17px; border-radius: 12px;
+             background: #313244; color: #cdd6f4; border: none; }
+button.big:active { background: #585b70; }
+button.danger { background: #8c2f3c; }
+button.home { background: #2f5d8c; }
+button.ws { min-height: 56px; min-width: 56px; font-size: 18px; border-radius: 12px;
+            background: #313244; color: #cdd6f4; border: none; }
+"""
+
+
+class Menu(Gtk.Application):
+    def __init__(self):
+        super().__init__(application_id=None)
+        self.win = None
+
+    def do_activate(self):
+        prov = Gtk.CssProvider()
+        prov.load_from_data(CSS)
+        Gtk.StyleContext.add_provider_for_display(Gdk.Display.get_default(), prov, Gtk.STYLE_PROVIDER_PRIORITY_USER)
+        w = Gtk.ApplicationWindow(application=self)
+        w.add_css_class("fold-wm")
+        LayerShell.init_for_window(w)
+        LayerShell.set_namespace(w, "fold-window-menu")
+        LayerShell.set_layer(w, LayerShell.Layer.OVERLAY)
+        LayerShell.set_keyboard_mode(w, LayerShell.KeyboardMode.NONE)
+        LayerShell.set_exclusive_zone(w, -1)
+        for e in (LayerShell.Edge.TOP, LayerShell.Edge.BOTTOM, LayerShell.Edge.LEFT, LayerShell.Edge.RIGHT):
+            LayerShell.set_anchor(w, e, True)
+
+        # a tap on the dimmed backdrop (not on the card) closes
+        bg = Gtk.GestureClick()
+        bg.connect("released", lambda _g, _n, x, y: self.quit() if w.pick(x, y, Gtk.PickFlags.DEFAULT) in (None, w) else None)
+        w.add_controller(bg)
+
+        card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+        card.add_css_class("card")
+        card.set_halign(Gtk.Align.CENTER)
+        card.set_valign(Gtk.Align.CENTER)
+
+        head = Gtk.Box(spacing=8)
+        lbl = Gtk.Label(label="窗口管理", xalign=0, hexpand=True)
+        lbl.add_css_class("title")
+        head.append(lbl)
+        head.append(self.btn("✕", self.quit, css="ws"))
+        card.append(head)
+        sub = Gtk.Label(label=TITLE[:60], xalign=0)
+        sub.add_css_class("sub")
+        card.append(sub)
+
+        g = Gtk.Grid(column_spacing=10, row_spacing=10, column_homogeneous=True)
+        acts = [
+            ("关闭窗口", lambda: on_target("hl.dsp.window.close()"), "danger"),
+            ("全屏", lambda: on_target("hl.dsp.window.fullscreen({ mode = 'fullscreen' })"), None),
+            ("浮动 / 平铺", lambda: on_target("hl.dsp.window.float({ action = 'toggle' })"), None),
+            ("最大化", lambda: on_target("hl.dsp.window.fullscreen({ mode = 'maximized' })"), None),
+            ("切换分割", lambda: on_target("hl.dsp.layout('togglesplit')"), None),
+            ("下一个窗口", lambda: lua("hl.dispatch(hl.dsp.window.cycle_next())"), None),
+            ("上一工作区", lambda: lua("hl.dispatch(hl.dsp.focus({ workspace = 'e-1' }))"), None),
+            ("下一工作区", lambda: lua("hl.dispatch(hl.dsp.focus({ workspace = 'e+1' }))"), None),
+            ("屏幕键盘", lambda: spawn("omarchy-osk-toggle toggle"), None),
+            ("应用抽屉", lambda: spawn("fold-drawer open"), None),
+            # fold-ux4: one tap back to a clean desktop (closes every popup, shows an empty workspace)
+            ("回桌面", lambda: spawn("fold-dismiss-overlays desktop"), "home"),
+            ("Omarchy 菜单", lambda: spawn("omarchy-menu toggle"), None),
+        ]
+        # fold-ux4: 3 columns on a landscape output so the card fits a 720 px tall screen
+        cols = 3 if SCREEN_W > SCREEN_H else 2
+        for i, (text, fn, css) in enumerate(acts):
+            g.attach(self.btn(text, fn, css=css), i % cols, i // cols, 1, 1)
+        card.append(g)
+
+        s = Gtk.Label(label="移动窗口到工作区（不跟随）", xalign=0)
+        s.add_css_class("sect")
+        card.append(s)
+        row = Gtk.Box(spacing=8, homogeneous=True)
+        for n in range(1, 6):
+            row.append(self.btn(str(n), (lambda n=n: move_to(n)), css="ws"))
+        card.append(row)
+
+        w.set_child(card)
+        self.win = w
+        w.present()
+        GLib.timeout_add_seconds(IDLE_CLOSE_S, lambda: (self.quit(), False)[1])
+
+    def btn(self, text, fn, css=None):
+        b = Gtk.Button(label=text)
+        b.add_css_class("ws" if css == "ws" else "big")
+        if css in ("danger", "home"):
+            b.add_css_class(css)
+
+        def clicked(_b):
+            if fn != self.quit:
+                fn()
+            self.quit()
+        b.connect("clicked", clicked)
+        return b
+
+
+def main():
+    with open(PIDFILE, "w") as f:
+        f.write(str(os.getpid()))
+    try:
+        app = Menu()
+        GLib.unix_signal_add(GLib.PRIORITY_DEFAULT, signal.SIGTERM, lambda: (app.quit(), False)[1])
+        app.run([])
+    finally:
+        try:
+            if open(PIDFILE).read().strip() == str(os.getpid()):
+                os.unlink(PIDFILE)
+        except OSError:
+            pass
+        spawn("fold-touch-flush-req window-menu-close")
+
+
+main()

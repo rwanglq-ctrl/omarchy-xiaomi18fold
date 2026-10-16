@@ -2,7 +2,7 @@
 
 ## Evidence and confidence
 
-Reported Pad environment: Xiaomi Pad 9 Pro Max, Android 16 Linux Terminal,
+Reported Pad environment: Xiaomi 18 Fold, Android 16 Linux Terminal,
 Debian host user UID 1000, ALARM nspawn `arch-desktop`, Hyprland 0.56.2.
 The compositor and watchdog launcher remain alive, and wayland-0 exists,
 but the display window is black. Aquamarine enumerates virtio_gpu card0,

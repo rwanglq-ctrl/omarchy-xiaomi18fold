@@ -1,0 +1,30 @@
+#!/usr/bin/python3 -I
+# fold-touch-flush (phone host, root via sudo): put every multitouch slot of the crosvm touchscreen
+# down and up once, so the kernel, libinput, Hyprland and the hyprgrass plugin all see a lift for
+# every touch id.  fold-ux7: hyprgrass only clears its "inhibit touch events" flag on a touch-down
+# while it tracks exactly ONE finger; a finger whose lift never arrived (Android cancelled a
+# 3/4-finger gesture, or fold-touch-reset removed the device mid-touch) stays in its state forever
+# and from then on every touch is cancelled -> dock / 窗口管理 / bar taps all dead, while window
+# focus still follows taps (hyprgrass warps the pointer on touch-down).
+# All slots touch the bottom-left corner (below the dock, wallpaper only) for ~40 ms.
+# Usage: sudo ~/fold-fix-tools/fold-touch-flush
+import fcntl, glob, os, struct, time
+def ioc(d, t, n, s): return (d << 30) | (s << 16) | (ord(t) << 8) | n
+def name(p):
+    fd = os.open(p, os.O_RDONLY); b = bytearray(256); fcntl.ioctl(fd, ioc(2, 'E', 6, 256), b); os.close(fd)
+    return b.rstrip(b'\0').decode()
+def absmax(fd, code):
+    b = bytearray(24); fcntl.ioctl(fd, ioc(2, 'E', 0x40 + code, 24), b); return struct.unpack('6i', b)[2]
+dev = next(p for p in sorted(glob.glob('/dev/input/event*')) if 'Touchscreen' in name(p))
+fd = os.open(dev, os.O_RDWR)
+slots = absmax(fd, 0x2f) + 1
+x, y = 8, max(absmax(fd, 0x36) - 2, 0)
+def ev(t, c, v): os.write(fd, struct.pack('qqHHi', 0, 0, t, c, v))
+for i in range(slots):
+    ev(3, 0x2f, i); ev(3, 0x39, 7000 + i); ev(3, 0x35, x); ev(3, 0x36, y)
+ev(1, 0x14a, 1); ev(3, 0, x); ev(3, 1, y); ev(0, 0, 0)
+time.sleep(0.04)
+for i in range(slots):
+    ev(3, 0x2f, i); ev(3, 0x39, -1)
+ev(1, 0x14a, 0); ev(0, 0, 0)
+print(f"fold-touch-flush: {slots} slots lifted on {dev}")

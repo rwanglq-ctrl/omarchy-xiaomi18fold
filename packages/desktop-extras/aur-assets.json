@@ -4,21 +4,21 @@
     "version": "4.32.0",
     "file": "aur-aether-4.32.0-sources.tar.gz",
     "integrity": "sha256-hex:8717f4bbc044c68be9254bab87fb1e1052c97a3bfeecb0af16878605e59413a7",
-    "cn_base_url": "https://gitee.com/zenbardofsuhe/omarchy-xiaomipad9pm/releases/download/tools-v0.2.9/"
+    "cn_base_url": "https://gitee.com/zenbardofsuhe/omarchy-xiaomi18fold/releases/download/tools-v0.2.9/"
   },
   {
     "name": "cliamp",
     "version": "2.3.0",
     "file": "aur-cliamp-2.3.0-sources.tar.gz",
     "integrity": "sha256-hex:0cb327e86ab831688cba5152210e8d4f89ae845c5e68ebc4bd7f3a6caac9f48a",
-    "cn_base_url": "https://gitee.com/zenbardofsuhe/omarchy-xiaomipad9pm/releases/download/tools-v0.2.9/"
+    "cn_base_url": "https://gitee.com/zenbardofsuhe/omarchy-xiaomi18fold/releases/download/tools-v0.2.9/"
   },
   {
     "name": "omawrite",
     "version": "0.5.0",
     "file": "aur-omawrite-0.5.0-sources.tar.gz",
     "integrity": "sha256-hex:308a3d128223e6b1c3f2cfbe73862de818e9a860455d0625b3420a2609d1ade2",
-    "cn_base_url": "https://gitee.com/zenbardofsuhe/omarchy-xiaomipad9pm/releases/download/tools-v0.2.9/"
+    "cn_base_url": "https://gitee.com/zenbardofsuhe/omarchy-xiaomi18fold/releases/download/tools-v0.2.9/"
   },
   {
     "name": "rime-ice",
@@ -31,34 +31,34 @@
     "version": "0.29.0",
     "file": "aur-tensaku-0.29.0-sources.tar.gz",
     "integrity": "sha256-hex:33f0582695ae0f9ca93a18706fe5b40d92101a06b2c1c182380a28c6cd3c1dfe",
-    "cn_base_url": "https://gitee.com/zenbardofsuhe/omarchy-xiaomipad9pm/releases/download/tools-v0.2.9/"
+    "cn_base_url": "https://gitee.com/zenbardofsuhe/omarchy-xiaomi18fold/releases/download/tools-v0.2.9/"
   },
   {
     "name": "ttf-ia-writer",
     "version": "20181225",
     "file": "aur-ttf-ia-writer-20181225-sources.tar.gz",
     "integrity": "sha256-hex:37fae675c6da975cbf66af40a0cddfee80f1b8462ccfc3d207855b6504d3b3b8",
-    "cn_base_url": "https://gitee.com/zenbardofsuhe/omarchy-xiaomipad9pm/releases/download/tools-v0.2.9/"
+    "cn_base_url": "https://gitee.com/zenbardofsuhe/omarchy-xiaomi18fold/releases/download/tools-v0.2.9/"
   },
   {
     "name": "ttfx",
     "version": "0.5.0",
     "file": "aur-ttfx-0.5.0-sources.tar.gz",
     "integrity": "sha256-hex:e6a0761a75545754f216450afd7535c74a08f2d92fc572d5b9f935f4a3707ab9",
-    "cn_base_url": "https://gitee.com/zenbardofsuhe/omarchy-xiaomipad9pm/releases/download/tools-v0.2.9/"
+    "cn_base_url": "https://gitee.com/zenbardofsuhe/omarchy-xiaomi18fold/releases/download/tools-v0.2.9/"
   },
   {
     "name": "yaru-icon-theme",
     "version": "26.10.3",
     "file": "aur-yaru-icon-theme-26.10.3-sources.tar.gz",
     "integrity": "sha256-hex:962dfb52113e1dd2858106257c421d1fe89264201e031fe11f79b529cb6a108a",
-    "cn_base_url": "https://gitee.com/zenbardofsuhe/omarchy-xiaomipad9pm/releases/download/tools-v0.2.9/"
+    "cn_base_url": "https://gitee.com/zenbardofsuhe/omarchy-xiaomi18fold/releases/download/tools-v0.2.9/"
   },
   {
     "name": "yay",
     "version": "13.0.1",
     "file": "aur-yay-13.0.1-sources.tar.gz",
     "integrity": "sha256-hex:89055e5ae4350ae48e3dff273caaf5224b7d0edfa604c036bed003ead16267cc",
-    "cn_base_url": "https://gitee.com/zenbardofsuhe/omarchy-xiaomipad9pm/releases/download/tools-v0.2.9/"
+    "cn_base_url": "https://gitee.com/zenbardofsuhe/omarchy-xiaomi18fold/releases/download/tools-v0.2.9/"
   }
 ]

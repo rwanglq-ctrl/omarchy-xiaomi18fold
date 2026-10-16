@@ -32,7 +32,7 @@ if [ "$1" = clone ]; then
 fi
 exec "$REAL_GIT" "$@"
 ''');wrapper.chmod(0o755)
-    script('tmux',"printf 'omarchy-install\\n'\n")
+    script('tmux',"printf 'omarchy-fold-install\\n'\n")
     script('sudo','[ "$1" != -n ] || shift\nexec "$@"\n')
     script('curl','printf "%s\\n" "$*" >> "$CURL_LOG"\nexit 22\n')
     script('apt-get','''echo "$*" >> "$APT_LOG"
@@ -66,13 +66,13 @@ case "$*" in *install*) cp "$WRAPPER" "$MOCK_BIN/git";; esac
     assert 'archive' not in (w/'curl.log').read_text()
     # Preserve clone arguments through the wrapper so real Git validates branch/tag
     # handling. Only transport is redirected to the fixture: no network is needed.
-    for override in [None,'gitee','https://gitee.com/zenbardofsuhe/omarchy-xiaomipad9pm']:
+    for override in [None,'gitee','https://gitee.com/zenbardofsuhe/omarchy-xiaomi18fold']:
         for ref,want,branch in [('main',second,'main'),('topic',first,'topic'),('v-test',first,'v-test'),(first,first,'main')]:
             (w/'git.log').unlink(missing_ok=True);(w/'curl.log').unlink(missing_ok=True)
             p=run(ref,MIRROR='cn',OMARCHY_ALARM_REPO=override)
             assert p.returncode==0 and 'CHECKED_OUT='+want in p.stdout,(ref,p.stderr)
             calls=(w/'git.log').read_text()
-            assert '--branch '+branch+' -- https://gitee.com/zenbardofsuhe/omarchy-xiaomipad9pm ' in calls,calls
+            assert '--branch '+branch+' -- https://gitee.com/zenbardofsuhe/omarchy-xiaomi18fold ' in calls,calls
             assert 'github.com' not in calls and 'archive' not in calls,calls
             assert not (w/'curl.log').exists(),'explicit CN requested HTTP/archive/probe'
             assert not list(scratch.iterdir()),'CN checkout leaked'

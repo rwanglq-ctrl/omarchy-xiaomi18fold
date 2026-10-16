@@ -1,0 +1,118 @@
+#!/usr/bin/python3 -I
+# fold-clip-bridge (phone host, user droid; started by systemd --user fold-clip-bridge.service)
+# fold-ux10: Android <-> Omarchy clipboard.
+#
+# The AVF guest agent (linux_vm_manager, root) syncs the Android clipboard by running
+#   sudo -u droid XDG_RUNTIME_DIR=/run/user/1000 WAYLAND_DISPLAY=wayland-0 wl-copy    (Android -> Linux,
+#        when the Terminal app gains focus)
+#   sudo -u droid ... WAYLAND_DISPLAY=wayland-0 wl-paste --no-newline              (Linux -> Android,
+#        when the Terminal app loses focus)
+# In arch mode /run/user/1000/wayland-0 is weston.socket's activation socket, which hypr-session keeps
+# but never serves: wl-copy failed and wl-paste hung forever. Wayland passes fds (SCM_RIGHTS), so a
+# byte proxy cannot work; instead keep wayland-0 a *hard link* to the Hyprland socket (wayland-1, which
+# lives in the same /run/user/1000 bind mount). Hyprland offers wlr/ext data-control, so wl-copy and
+# wl-paste work without focus. Container clients are unaffected (they use WAYLAND_DISPLAY=wayland-1).
+#
+# Every 2 s: if ~/.config/hypr-session-mode is "arch" and wayland-0 is not the live Hyprland socket,
+# re-link it (atomic rename). Also kills agent wl-paste/wl-copy --no-newline readers stuck > 15 s.
+# Debian/weston mode: does nothing (the link stays until the VM reboots; do NOT restart weston.socket
+# by hand while a session runs - weston.service Requires= it, so that would stop the desktop).
+# Log: ~/.local/state/omarchy-alarm/fold-clip-bridge.log
+import os, signal, socket, stat, time
+
+RUN = "/run/user/1000"
+WL0 = RUN + "/wayland-0"
+HOME = os.path.expanduser("~")
+MODE = HOME + "/.config/hypr-session-mode"
+LOG = HOME + "/.local/state/omarchy-alarm/fold-clip-bridge.log"
+STUCK_S = 15
+
+
+def log(m):
+    with open(LOG, "a") as f:
+        f.write(f"{time.strftime('%F %T')} {m}\n")
+
+
+def ino(p):
+    try:
+        st = os.lstat(p)
+    except OSError:
+        return None
+    return st.st_ino if stat.S_ISSOCK(st.st_mode) and st.st_uid == os.getuid() else None
+
+
+def live(p):
+    s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    s.settimeout(1)
+    try:
+        s.connect(p)
+        return True
+    except OSError:
+        return False
+    finally:
+        s.close()
+
+
+def target():
+    for n in range(1, 10):
+        p = f"{RUN}/wayland-{n}"
+        if ino(p) and live(p):
+            return p
+    return None
+
+
+def reap_stuck():
+    hz = os.sysconf("SC_CLK_TCK")
+    with open("/proc/uptime") as f:
+        up = float(f.read().split()[0])
+    for pid in filter(str.isdigit, os.listdir("/proc")):
+        try:
+            with open(f"/proc/{pid}/cmdline", "rb") as f:
+                argv = f.read().split(b"\0")
+            if argv[:2] != [b"wl-paste", b"--no-newline"]:
+                continue
+            with open(f"/proc/{pid}/environ", "rb") as f:
+                if b"WAYLAND_DISPLAY=wayland-0" not in f.read().split(b"\0"):
+                    continue
+            with open(f"/proc/{pid}/stat") as f:
+                start = int(f.read().rsplit(")", 1)[1].split()[19]) / hz
+            if up - start > STUCK_S:
+                os.kill(int(pid), signal.SIGTERM)
+                log(f"killed stuck agent wl-paste pid={pid} age={up - start:.0f}s")
+        except (OSError, ValueError, IndexError):
+            continue
+
+
+def tick():
+    try:
+        with open(MODE) as f:
+            mode = f.read().strip()
+    except OSError:
+        mode = "debian"
+    if mode != "arch":
+        return
+    reap_stuck()
+    cur = ino(WL0)
+    # libwayland unlinks wayland-N when Hyprland exits, so a matching inode means it is current
+    if cur and any(ino(f"{RUN}/wayland-{n}") == cur for n in range(1, 10)):
+        return
+    t = target()
+    if not t:
+        return
+    tmp = f"{RUN}/.wayland-0.fold-clip"
+    try:
+        os.unlink(tmp)
+    except FileNotFoundError:
+        pass
+    os.link(t, tmp)
+    os.rename(tmp, WL0)
+    log(f"linked wayland-0 -> {os.path.basename(t)} (ino {ino(WL0)})")
+
+
+log("start")
+while True:
+    try:
+        tick()
+    except Exception as e:  # keep running; systemd restarts on crash anyway
+        log(f"error: {e!r}")
+    time.sleep(2)

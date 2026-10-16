@@ -58,10 +58,10 @@
       "strip": 0,
       "entry": "bin/herdr",
       "url": "https://github.com/herdrdev/herdr/releases/download/v0.9.3/herdr-linux-aarch64",
-      "cn_url": "https://gitee.com/zenbardofsuhe/omarchy-xiaomipad9pm/releases/download/tools-v0.2.9/herdr-0.9.3-aarch64.bin",
+      "cn_url": "https://gitee.com/zenbardofsuhe/omarchy-xiaomi18fold/releases/download/tools-v0.2.9/herdr-0.9.3-aarch64.bin",
       "integrity": "sha256-hex:4de7aa3e25678812e92960de64f7c2aaa1bca1f0f80a3c5e559837e231e1f5c0",
       "asset_name": "herdr-0.9.3-aarch64.bin",
-      "cn_base_url": "https://gitee.com/zenbardofsuhe/omarchy-xiaomipad9pm/releases/download/tools-v0.2.9/"
+      "cn_base_url": "https://gitee.com/zenbardofsuhe/omarchy-xiaomi18fold/releases/download/tools-v0.2.9/"
     },
     {
       "name": "crush",
@@ -70,10 +70,10 @@
       "strip": 1,
       "entry": "crush",
       "url": "https://github.com/charmbracelet/crush/releases/download/v0.97.1/crush_0.97.1_Linux_arm64.tar.gz",
-      "cn_url": "https://gitee.com/zenbardofsuhe/omarchy-xiaomipad9pm/releases/download/tools-v0.2.9/crush-0.97.1-aarch64.tar.gz",
+      "cn_url": "https://gitee.com/zenbardofsuhe/omarchy-xiaomi18fold/releases/download/tools-v0.2.9/crush-0.97.1-aarch64.tar.gz",
       "integrity": "sha256-hex:16c9477a178d69e02a51bf4babe6174e62051314b2cd7f36b1ec5fea47e25a88",
       "asset_name": "crush-0.97.1-aarch64.tar.gz",
-      "cn_base_url": "https://gitee.com/zenbardofsuhe/omarchy-xiaomipad9pm/releases/download/tools-v0.2.9/"
+      "cn_base_url": "https://gitee.com/zenbardofsuhe/omarchy-xiaomi18fold/releases/download/tools-v0.2.9/"
     },
     {
       "name": "omp",
@@ -93,10 +93,10 @@
       "strip": 1,
       "entry": "bin/gh",
       "url": "https://github.com/cli/cli/releases/download/v2.102.0/gh_2.102.0_linux_arm64.tar.gz",
-      "cn_url": "https://gitee.com/zenbardofsuhe/omarchy-xiaomipad9pm/releases/download/tools-v0.2.9/gh-2.102.0-aarch64.tar.gz",
+      "cn_url": "https://gitee.com/zenbardofsuhe/omarchy-xiaomi18fold/releases/download/tools-v0.2.9/gh-2.102.0-aarch64.tar.gz",
       "integrity": "sha256-hex:7862c86c72f43df3a2d93ddde6f473285b4e2af61b494849846827e513ef6484",
       "asset_name": "gh-2.102.0-aarch64.tar.gz",
-      "cn_base_url": "https://gitee.com/zenbardofsuhe/omarchy-xiaomipad9pm/releases/download/tools-v0.2.9/"
+      "cn_base_url": "https://gitee.com/zenbardofsuhe/omarchy-xiaomi18fold/releases/download/tools-v0.2.9/"
     },
     {
       "name": "cursor-agent",
@@ -116,10 +116,10 @@
       "strip": 1,
       "entry": "sing-box",
       "url": "https://github.com/SagerNet/sing-box/releases/download/v1.14.3/sing-box-1.14.3-linux-arm64.tar.gz",
-      "cn_url": "https://gitee.com/zenbardofsuhe/omarchy-xiaomipad9pm/releases/download/tools-v0.2.9/sing-box-1.14.3-aarch64.tar.gz",
+      "cn_url": "https://gitee.com/zenbardofsuhe/omarchy-xiaomi18fold/releases/download/tools-v0.2.9/sing-box-1.14.3-aarch64.tar.gz",
       "asset_name": "sing-box-1.14.3-aarch64.tar.gz",
       "integrity": "sha256-hex:29dae24d76bea3bc62d07dd3e60cfc12003de7debbd6b768df9be9c68360174e",
-      "cn_base_url": "https://gitee.com/zenbardofsuhe/omarchy-xiaomipad9pm/releases/download/tools-v0.2.9/"
+      "cn_base_url": "https://gitee.com/zenbardofsuhe/omarchy-xiaomi18fold/releases/download/tools-v0.2.9/"
     },
     {
       "name": "basecamp",
@@ -128,10 +128,10 @@
       "strip": 0,
       "entry": "basecamp",
       "url": "https://github.com/basecamp/basecamp-cli/releases/download/v0.13.2/basecamp_0.13.2_linux_arm64.tar.gz",
-      "cn_url": "https://gitee.com/zenbardofsuhe/omarchy-xiaomipad9pm/releases/download/tools-v0.2.9/basecamp-0.13.2-aarch64.tar.gz",
+      "cn_url": "https://gitee.com/zenbardofsuhe/omarchy-xiaomi18fold/releases/download/tools-v0.2.9/basecamp-0.13.2-aarch64.tar.gz",
       "asset_name": "basecamp-0.13.2-aarch64.tar.gz",
       "integrity": "sha256-hex:ca1c8a5c6ffb330e09c18db89c2499fde7c2e04029ff354fb5d7463699a90d56",
-      "cn_base_url": "https://gitee.com/zenbardofsuhe/omarchy-xiaomipad9pm/releases/download/tools-v0.2.9/"
+      "cn_base_url": "https://gitee.com/zenbardofsuhe/omarchy-xiaomi18fold/releases/download/tools-v0.2.9/"
     },
     {
       "name": "hey",
@@ -140,10 +140,10 @@
       "strip": 0,
       "entry": "hey",
       "url": "https://github.com/basecamp/hey-cli/releases/download/v1.8.1/hey_1.8.1_linux_arm64.tar.gz",
-      "cn_url": "https://gitee.com/zenbardofsuhe/omarchy-xiaomipad9pm/releases/download/tools-v0.2.9/hey-1.8.1-aarch64.tar.gz",
+      "cn_url": "https://gitee.com/zenbardofsuhe/omarchy-xiaomi18fold/releases/download/tools-v0.2.9/hey-1.8.1-aarch64.tar.gz",
       "asset_name": "hey-1.8.1-aarch64.tar.gz",
       "integrity": "sha256-hex:4af272c865fd1886a3ba1ec7729be470901060586ddb36a76d48655cab47d77c",
-      "cn_base_url": "https://gitee.com/zenbardofsuhe/omarchy-xiaomipad9pm/releases/download/tools-v0.2.9/"
+      "cn_base_url": "https://gitee.com/zenbardofsuhe/omarchy-xiaomi18fold/releases/download/tools-v0.2.9/"
     },
     {
       "name": "hunk",
@@ -152,10 +152,10 @@
       "strip": 1,
       "entry": "hunk",
       "url": "https://github.com/modem-dev/hunk/releases/download/v0.23.0/hunkdiff-linux-arm64.tar.gz",
-      "cn_url": "https://gitee.com/zenbardofsuhe/omarchy-xiaomipad9pm/releases/download/tools-v0.2.9/hunk-0.23.0-aarch64.tar.gz",
+      "cn_url": "https://gitee.com/zenbardofsuhe/omarchy-xiaomi18fold/releases/download/tools-v0.2.9/hunk-0.23.0-aarch64.tar.gz",
       "asset_name": "hunk-0.23.0-aarch64.tar.gz",
       "integrity": "sha256-hex:5b8928ae1e987b2b1775d1fe62eebabcc08b9fc9940154e0cef27d24941cb7e4",
-      "cn_base_url": "https://gitee.com/zenbardofsuhe/omarchy-xiaomipad9pm/releases/download/tools-v0.2.9/"
+      "cn_base_url": "https://gitee.com/zenbardofsuhe/omarchy-xiaomi18fold/releases/download/tools-v0.2.9/"
     },
     {
       "name": "mimo",
@@ -164,13 +164,13 @@
       "strip": 0,
       "entry": "mimo",
       "url": "https://github.com/XiaomiMiMo/MiMo-Code/releases/download/v0.1.15/mimocode-linux-arm64.tar.gz",
-      "cn_url": "https://gitee.com/zenbardofsuhe/omarchy-xiaomipad9pm/releases/download/tools-v0.2.9/mimocode-0.1.15-aarch64.tar.gz",
+      "cn_url": "https://gitee.com/zenbardofsuhe/omarchy-xiaomi18fold/releases/download/tools-v0.2.9/mimocode-0.1.15-aarch64.tar.gz",
       "asset_name": "mimocode-0.1.15-aarch64.tar.gz",
       "integrity": "sha256-hex:749ea8704ce98d300e1d162faf982ed0a3795fab48bd984c1e5c80f2e72b0101",
       "aliases": [
         "mimocode"
       ],
-      "cn_base_url": "https://gitee.com/zenbardofsuhe/omarchy-xiaomipad9pm/releases/download/tools-v0.2.9/"
+      "cn_base_url": "https://gitee.com/zenbardofsuhe/omarchy-xiaomi18fold/releases/download/tools-v0.2.9/"
     },
     {
       "name": "cass",
@@ -179,10 +179,10 @@
       "strip": 0,
       "entry": "cass",
       "url": "https://github.com/Dicklesworthstone/coding_agent_session_search/releases/download/v0.10.0/cass-linux-arm64.tar.gz",
-      "cn_url": "https://gitee.com/zenbardofsuhe/omarchy-xiaomipad9pm/releases/download/tools-v0.2.9/cass-0.10.0-aarch64.tar.gz",
+      "cn_url": "https://gitee.com/zenbardofsuhe/omarchy-xiaomi18fold/releases/download/tools-v0.2.9/cass-0.10.0-aarch64.tar.gz",
       "asset_name": "cass-0.10.0-aarch64.tar.gz",
       "integrity": "sha256-hex:529412e7e1f85f5a2c8f5e5fda1604b65ca90ed8acd68dbf286f63384b4baf09",
-      "cn_base_url": "https://gitee.com/zenbardofsuhe/omarchy-xiaomipad9pm/releases/download/tools-v0.2.9/"
+      "cn_base_url": "https://gitee.com/zenbardofsuhe/omarchy-xiaomi18fold/releases/download/tools-v0.2.9/"
     },
     {
       "name": "ori",
@@ -191,26 +191,26 @@
       "strip": 0,
       "entry": "bin/ori",
       "url": "https://github.com/OpenRouterLabs/ori-releases/releases/download/cli-0.15.7-d702b99/ori-linux-arm64",
-      "cn_url": "https://gitee.com/zenbardofsuhe/omarchy-xiaomipad9pm/releases/download/tools-v0.2.9/ori-cli-0.15.7-d702b99-aarch64.bin",
+      "cn_url": "https://gitee.com/zenbardofsuhe/omarchy-xiaomi18fold/releases/download/tools-v0.2.9/ori-cli-0.15.7-d702b99-aarch64.bin",
       "asset_name": "ori-cli-0.15.7-d702b99-aarch64.bin",
       "integrity": "sha256-hex:57e7e36f82acfc0af7c13f4bdd67ecd000d3d1ec88c3799b5d182c8cd84f7e55",
       "cn_parts": [
         {
           "asset_name": "ori-cli-0.15.7-d702b99-aarch64.bin.part001",
-          "cn_url": "https://gitee.com/zenbardofsuhe/omarchy-xiaomipad9pm/releases/download/tools-v0.2.9/ori-cli-0.15.7-d702b99-aarch64.bin.part001",
+          "cn_url": "https://gitee.com/zenbardofsuhe/omarchy-xiaomi18fold/releases/download/tools-v0.2.9/ori-cli-0.15.7-d702b99-aarch64.bin.part001",
           "integrity": "sha256-hex:9487ba61238aaa5ced6851d0ad971eeb9b27222b8f4b78b44984d87dd7c29980",
           "size": 94371840,
-          "cn_base_url": "https://gitee.com/zenbardofsuhe/omarchy-xiaomipad9pm/releases/download/tools-v0.2.9/"
+          "cn_base_url": "https://gitee.com/zenbardofsuhe/omarchy-xiaomi18fold/releases/download/tools-v0.2.9/"
         },
         {
           "asset_name": "ori-cli-0.15.7-d702b99-aarch64.bin.part002",
-          "cn_url": "https://gitee.com/zenbardofsuhe/omarchy-xiaomipad9pm/releases/download/tools-v0.2.9/ori-cli-0.15.7-d702b99-aarch64.bin.part002",
+          "cn_url": "https://gitee.com/zenbardofsuhe/omarchy-xiaomi18fold/releases/download/tools-v0.2.9/ori-cli-0.15.7-d702b99-aarch64.bin.part002",
           "integrity": "sha256-hex:6bcf721f309590359b2a8ffdc33f1e6070d7b59d1bc9dde936a56b754f1759f4",
           "size": 31377704,
-          "cn_base_url": "https://gitee.com/zenbardofsuhe/omarchy-xiaomipad9pm/releases/download/tools-v0.2.9/"
+          "cn_base_url": "https://gitee.com/zenbardofsuhe/omarchy-xiaomi18fold/releases/download/tools-v0.2.9/"
         }
       ],
-      "cn_base_url": "https://gitee.com/zenbardofsuhe/omarchy-xiaomipad9pm/releases/download/tools-v0.2.9/"
+      "cn_base_url": "https://gitee.com/zenbardofsuhe/omarchy-xiaomi18fold/releases/download/tools-v0.2.9/"
     },
     {
       "name": "copilot",
@@ -219,26 +219,26 @@
       "strip": 0,
       "entry": "copilot",
       "url": "https://github.com/github/copilot-cli/releases/download/v1.0.96/copilot-linux-arm64.tar.gz",
-      "cn_url": "https://gitee.com/zenbardofsuhe/omarchy-xiaomipad9pm/releases/download/tools-v0.2.9/copilot-1.0.96-aarch64.tar.gz",
+      "cn_url": "https://gitee.com/zenbardofsuhe/omarchy-xiaomi18fold/releases/download/tools-v0.2.9/copilot-1.0.96-aarch64.tar.gz",
       "asset_name": "copilot-1.0.96-aarch64.tar.gz",
       "integrity": "sha256-hex:5073e1ee39fab0c724d10e6fc852977830b5196aa9b66cde934a65faa8010d6b",
       "cn_parts": [
         {
           "asset_name": "copilot-1.0.96-aarch64.tar.gz.part001",
-          "cn_url": "https://gitee.com/zenbardofsuhe/omarchy-xiaomipad9pm/releases/download/tools-v0.2.9/copilot-1.0.96-aarch64.tar.gz.part001",
+          "cn_url": "https://gitee.com/zenbardofsuhe/omarchy-xiaomi18fold/releases/download/tools-v0.2.9/copilot-1.0.96-aarch64.tar.gz.part001",
           "integrity": "sha256-hex:90cc23e6b23741868b6e8ad477fa8ef98ef250066de5b3cdde44838ef83359a7",
           "size": 94371840,
-          "cn_base_url": "https://gitee.com/zenbardofsuhe/omarchy-xiaomipad9pm/releases/download/tools-v0.2.9/"
+          "cn_base_url": "https://gitee.com/zenbardofsuhe/omarchy-xiaomi18fold/releases/download/tools-v0.2.9/"
         },
         {
           "asset_name": "copilot-1.0.96-aarch64.tar.gz.part002",
-          "cn_url": "https://gitee.com/zenbardofsuhe/omarchy-xiaomipad9pm/releases/download/tools-v0.2.9/copilot-1.0.96-aarch64.tar.gz.part002",
+          "cn_url": "https://gitee.com/zenbardofsuhe/omarchy-xiaomi18fold/releases/download/tools-v0.2.9/copilot-1.0.96-aarch64.tar.gz.part002",
           "integrity": "sha256-hex:2eeb2fb0fe0e9678c74db46ab4dea2648104d7269cdaab59042f83768b80ca54",
           "size": 22822434,
-          "cn_base_url": "https://gitee.com/zenbardofsuhe/omarchy-xiaomipad9pm/releases/download/tools-v0.2.9/"
+          "cn_base_url": "https://gitee.com/zenbardofsuhe/omarchy-xiaomi18fold/releases/download/tools-v0.2.9/"
         }
       ],
-      "cn_base_url": "https://gitee.com/zenbardofsuhe/omarchy-xiaomipad9pm/releases/download/tools-v0.2.9/"
+      "cn_base_url": "https://gitee.com/zenbardofsuhe/omarchy-xiaomi18fold/releases/download/tools-v0.2.9/"
     },
     {
       "name": "antigravity",
@@ -251,9 +251,9 @@
       ],
       "asset_name": "antigravity-1.3.4-aarch64.tar.gz",
       "url": "https://github.com/google-antigravity/antigravity-cli/releases/download/1.3.4/agy_cli_linux_arm64.tar.gz",
-      "cn_url": "https://gitee.com/zenbardofsuhe/omarchy-xiaomipad9pm/releases/download/tools-v0.2.9/antigravity-1.3.4-aarch64.tar.gz",
+      "cn_url": "https://gitee.com/zenbardofsuhe/omarchy-xiaomi18fold/releases/download/tools-v0.2.9/antigravity-1.3.4-aarch64.tar.gz",
       "integrity": "sha256-hex:56161a1849eff501fead19bc7c477ee80f26776bf470fda01c119cc345a1818c",
-      "cn_base_url": "https://gitee.com/zenbardofsuhe/omarchy-xiaomipad9pm/releases/download/tools-v0.2.9/"
+      "cn_base_url": "https://gitee.com/zenbardofsuhe/omarchy-xiaomi18fold/releases/download/tools-v0.2.9/"
     },
     {
       "name": "ghui",
@@ -262,7 +262,7 @@
       "strip": 1,
       "entry": "bin/ghui",
       "url": "https://registry.npmjs.org/@kitlangton/ghui-linux-arm64/-/ghui-linux-arm64-0.9.1.tgz",
-      "cn_base_url": "https://gitee.com/zenbardofsuhe/omarchy-xiaomipad9pm/releases/download/tools-v0.2.9/",
+      "cn_base_url": "https://gitee.com/zenbardofsuhe/omarchy-xiaomi18fold/releases/download/tools-v0.2.9/",
       "asset_name": "ghui-linux-arm64-0.9.1.tgz",
       "integrity": "sha256-hex:e67df31a1e665c60135797951ac70b3319470842a7d03c11026ebcfc503a2a8e"
     }

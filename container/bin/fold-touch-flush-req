@@ -1,0 +1,20 @@
+#!/bin/bash
+# fold-touch-flush-req — ask the phone host's fold-touch-flushd (fold-ux9) to make sure no finger is
+# left "down" after a gesture / popup: it lifts touch slots that are stale (Android swallowed the
+# lift), which would otherwise make hyprgrass cancel every later touch (dock / popups dead).
+# Usage: fold-touch-flush-req [reason]          lift stale slots (no tap is injected; always safe)
+#        fold-touch-flush-req --full [reason]   full fold-touch-flush (taps the bottom-left corner;
+#                                               closes omarchy-menu; for manual rescue only)
+# Never blocks for more than 1 s and is a no-op when the host daemon is not running.
+kind=idle
+[[ ${1:-} == --full ]] && { kind=flush; shift; }
+FIFO=${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/fold-touch-flush.fifo
+LOG="$HOME/.local/state/omarchy-alarm/fold-touch-flush.log"
+mkdir -p "${LOG%/*}"
+reason=${1:-manual}
+if [[ -p $FIFO ]] && timeout 1 bash -c 'printf "%s\n" "$2" >"$1"' _ "$FIFO" "$kind ${reason//[^A-Za-z0-9:._-]/_}" 2>/dev/null; then
+  printf '%s %s %s\n' "$(date '+%F %T')" "$kind" "$reason" >>"$LOG"
+else
+  printf '%s %s %s (no host daemon)\n' "$(date '+%F %T')" "$kind" "$reason" >>"$LOG"
+fi
+exit 0

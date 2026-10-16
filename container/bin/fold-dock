@@ -1,0 +1,17 @@
+#!/bin/bash
+# Fold: persistent bottom dock (nwg-dock-hyprland), respawned if it exits (e.g. AVF output hot-swap).
+# Off switch: touch ~/.config/fold-dock-disabled; then: pkill -f fold-dock; pkill -x nwg-dock-hyprland
+# Size: change -i (icon px). Launcher button (end of dock) opens fold-drawer.
+LOG=~/.local/state/omarchy-alarm/fold-dock.log
+mkdir -p "${LOG%/*}"
+pgrep -f -x "/bin/bash $0" | grep -vx $$ | grep -q . && { echo "already running"; exit 0; }
+fails=0
+while [[ ! -f ~/.config/fold-dock-disabled ]]; do
+  start=$(date +%s)
+  nwg-dock-hyprland -p bottom -i 52 -mb 4 -x -hd 0 -c fold-drawer -lp end -iw special >>"$LOG" 2>&1
+  rc=$?
+  echo "$(date +%T) nwg-dock-hyprland exited rc=$rc" >>"$LOG"
+  if (( $(date +%s) - start < 20 )); then fails=$((fails + 1)); else fails=0; fi
+  (( fails >= 5 )) && { echo "$(date +%T) giving up after 5 quick exits" >>"$LOG"; exit 1; }
+  sleep 3
+done

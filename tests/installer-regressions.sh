@@ -417,7 +417,7 @@ echo STUB-HOST-EOF
 STUB
   # This dispatch regression runs inside a simulated protected parent session.
   # Dedicated tmux regressions exercise creation and the detached runner.
-  printf '#!/bin/bash\nprintf "omarchy-install\\n"\n' > "$work/bin/tmux"
+  printf '#!/bin/bash\nprintf "omarchy-fold-install\\n"\n' > "$work/bin/tmux"
   chmod +x "$work/bin/tmux"
   reset_nspawn ok
   printf '==> must remain input data\n' > "$work/installer-stdin"

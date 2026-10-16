@@ -257,6 +257,13 @@ install_config_overlay() {
     install -Dm644 "$file" "$HOME/.config/$relative"
   done < <(find "$ROOT/config" -type f -print0)
   install -Dm755 "$ROOT/container/bin/fcitx5-autostart" "$HOME/.local/bin/fcitx5-autostart"
+  # Xiaomi 18 Fold helpers (display guard, touch flush, dock, OSK toggle, window menu)
+  for _fold_bin in fold-display-guard fold-window-menu fold-touch-flush-req fold-dismiss-overlays \
+      fold-session-rescue omarchy-osk-toggle fold-dock fold-drawer; do
+    if [[ -f $ROOT/container/bin/$_fold_bin ]]; then
+      install -Dm755 "$ROOT/container/bin/$_fold_bin" "$HOME/.local/bin/$_fold_bin"
+    fi
+  done
   install -Dm755 "$ROOT/container/bin/host-run" "$HOME/.local/bin/host-run"
   install -Dm755 "$ROOT/container/bin/portal-autostart" "$HOME/.local/bin/portal-autostart"
   install -Dm755 "$ROOT/container/bin/lock-ime-reset-autostart" "$HOME/.local/bin/lock-ime-reset-autostart"
@@ -281,10 +288,11 @@ BASHRC
 }
 provision_user_headless() {
   # No graphical session or host dconf access; no copied identity or mise secrets.
+  # --first-install marks shipped migrations done (bare-metal steps are wrong in nspawn).
   env -u DISPLAY -u WAYLAND_DISPLAY -u HYPRLAND_INSTANCE_SIGNATURE \
     OMARCHY_SETUP_CONTEXT=provision-owner OMARCHY_THEME_HEADLESS=1 OMARCHY_PROGRAMS_ONLY=1 \
     OMARCHY_USER_NAME='' OMARCHY_USER_EMAIL='' GSETTINGS_BACKEND=keyfile \
-    "$OMARCHY_PATH/bin/omarchy-provision-user"
+    "$OMARCHY_PATH/bin/omarchy-provision-user" --first-install
 }
 configure_input_and_fonts() {
   local rime="$HOME/.local/share/fcitx5/rime"

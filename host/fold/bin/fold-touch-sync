@@ -1,0 +1,207 @@
+#!/usr/bin/python3 -I
+# Keep the crosvm touchscreen's advertised axis range equal to the live AVF display.
+#
+# virtio-input fixes ABS_X/ABS_Y/ABS_MT_POSITION_* at VM boot (1280x720 on the fold,
+# before the Android Terminal surface attaches). The display is then resized on
+# attach and on every fold/unfold (new Virtual-N connector, e.g. 836x1015), but the
+# touch range is never updated, so libinput scales every tap into the wrong place
+# and taps below the old height land off-screen. This daemon rewrites the range with
+# EVIOCSABS whenever the connected mode changes, then replays remove/add through udev
+# so libinput (Hyprland/aquamarine) reopens the device and reads the new range.
+#
+# Self-check: this relies on AVF sending touch in live display pixels. If a real
+# touch ever arrives outside the synced display size (i.e. AVF rescales to the boot
+# range instead), the original range is restored and syncing disables itself
+# (flag: /var/lib/fold-touch-sync/disabled).
+#
+# Off switch: systemctl disable --now fold-touch-sync  (a VM reboot restores the
+# kernel's original range).
+import ctypes, fcntl, glob, os, select, struct, subprocess, sys, time
+
+ABS_X, ABS_Y, ABS_MT_X, ABS_MT_Y = 0x00, 0x01, 0x35, 0x36
+POLL = 1.0
+STATE = '/var/lib/fold-touch-sync'
+DISABLED = STATE + '/disabled'
+# Kernel's boot-time range, kept on tmpfs: it resets with the kernel on VM reboot.
+ORIG = '/run/fold-touch-sync.orig'
+synced = {'mode': None, 'since': 0.0, 'orig': None}
+
+
+def ioc(d, t, n, s):
+    return (d << 30) | (s << 16) | (ord(t) << 8) | n
+
+
+def log(msg):
+    print(time.strftime('%F %T'), msg, flush=True)
+
+
+def dev_name(path):
+    try:
+        fd = os.open(path, os.O_RDONLY)
+    except OSError:
+        return ''
+    try:
+        b = bytearray(256)
+        fcntl.ioctl(fd, ioc(2, 'E', 0x06, 256), b)
+        return b.rstrip(b'\0').decode(errors='replace')
+    finally:
+        os.close(fd)
+
+
+def touchscreen():
+    for path in sorted(glob.glob('/dev/input/event*')):
+        if 'Touchscreen' in dev_name(path):
+            return path
+    return None
+
+
+def crtc_mode():
+    # Active scanout size from the CRTC (GETRESOURCES/GETCRTC need no DRM master).
+    # Preferred over sysfs, whose re-probed mode list is CVT-rounded (836 -> 832).
+    fd = os.open('/dev/dri/card0', os.O_RDWR)
+    try:
+        res = bytearray(64)
+        fcntl.ioctl(fd, ioc(3, 'd', 0xA0, 64), res)
+        count = struct.unpack_from('I', res, 36)[0]
+        carr = (ctypes.c_uint32 * count)()
+        struct.pack_into('QQQQIIII', res, 0, 0, ctypes.addressof(carr), 0, 0, 0, count, 0, 0)
+        fcntl.ioctl(fd, ioc(3, 'd', 0xA0, 64), res)
+        for crtc_id in carr:
+            c = bytearray(104)
+            struct.pack_into('I', c, 12, crtc_id)
+            fcntl.ioctl(fd, ioc(3, 'd', 0xA1, 104), c)
+            fb_id, mode_valid = struct.unpack_from('I', c, 16)[0], struct.unpack_from('I', c, 32)[0]
+            hdisplay, vdisplay = struct.unpack_from('H', c, 40)[0], struct.unpack_from('H', c, 50)[0]
+            if mode_valid and fb_id and hdisplay and vdisplay:
+                return hdisplay, vdisplay
+    finally:
+        os.close(fd)
+    return None
+
+
+def display_mode():
+    try:
+        mode = crtc_mode()
+        if mode:
+            return mode
+    except OSError:
+        pass
+    for status in sorted(glob.glob('/sys/class/drm/card0-*/status')):
+        try:
+            if open(status).read().strip() != 'connected':
+                continue
+            first = open(status[:-len('status')] + 'modes').readline().strip()
+        except OSError:
+            continue
+        w, _, h = first.partition('x')
+        if w.isdigit() and h.isdigit():
+            return int(w), int(h)
+    return None
+
+
+def get_abs(fd, code):
+    b = bytearray(24)
+    fcntl.ioctl(fd, ioc(2, 'E', 0x40 + code, 24), b)
+    return list(struct.unpack('6i', b))
+
+
+def set_max(fd, code, maximum):
+    info = get_abs(fd, code)
+    info[2] = maximum
+    fcntl.ioctl(fd, ioc(1, 'E', 0xc0 + code, 24), struct.pack('6i', *info))
+
+
+def replay(path):
+    syspath = '/sys/class/input/' + os.path.basename(path)
+    for action in ('remove', 'add'):
+        subprocess.run(['udevadm', 'trigger', '--action=' + action, syspath], check=False)
+        subprocess.run(['udevadm', 'settle', '--timeout=5'], check=False)
+        time.sleep(0.3)
+
+
+def apply_range(path, size):
+    fd = os.open(path, os.O_RDWR)
+    try:
+        cur = (get_abs(fd, ABS_MT_X)[2], get_abs(fd, ABS_MT_Y)[2])
+        if cur == size:
+            return cur, False
+        for code, value in ((ABS_X, size[0]), (ABS_MT_X, size[0]), (ABS_Y, size[1]), (ABS_MT_Y, size[1])):
+            set_max(fd, code, value)
+    finally:
+        os.close(fd)
+    replay(path)
+    return cur, True
+
+
+def sync_once():
+    if os.path.exists(DISABLED):
+        return
+    path, mode = touchscreen(), display_mode()
+    if not path or not mode:
+        return
+    if synced['orig'] is None:
+        try:
+            synced['orig'] = tuple(int(v) for v in open(ORIG).read().split()[:2])
+        except (OSError, ValueError):
+            fd = os.open(path, os.O_RDONLY)
+            try:
+                synced['orig'] = (get_abs(fd, ABS_MT_X)[2], get_abs(fd, ABS_MT_Y)[2])
+            finally:
+                os.close(fd)
+            open(ORIG, 'w').write('%d %d\n' % synced['orig'])
+    cur, changed = apply_range(path, mode)
+    if changed:
+        log(f'{path}: touch range {cur[0]}x{cur[1]} -> {mode[0]}x{mode[1]} (display); re-added device')
+    if synced['mode'] != mode:
+        synced['mode'], synced['since'] = mode, time.monotonic()
+
+
+def self_check(x, y):
+    mode = synced['mode']
+    if not mode or os.path.exists(DISABLED) or time.monotonic() - synced['since'] < 3:
+        return
+    if display_mode() != mode or (x <= mode[0] + 4 and y <= mode[1] + 4):
+        return
+    path, orig = touchscreen(), synced['orig']
+    log(f'real touch at {x}x{y} outside synced display {mode[0]}x{mode[1]}: AVF does not send '
+        f'display pixels; restoring range {orig} and disabling')
+    os.makedirs(STATE, exist_ok=True)
+    open(DISABLED, 'w').write(f'{time.strftime("%F %T")} touch {x}x{y} outside {mode}\n')
+    if path and orig:
+        apply_range(path, orig)
+
+
+def main():
+    once = '--once' in sys.argv
+    log('fold-touch-sync start' + (' (disabled by self-check: ' + DISABLED + ')' if os.path.exists(DISABLED) else ''))
+    evfd, x, y = None, 0, 0
+    while True:
+        try:
+            sync_once()
+            if evfd is None and touchscreen():
+                evfd = os.open(touchscreen(), os.O_RDONLY | os.O_NONBLOCK)
+                # The kernel drops a repeated per-slot value, so seed from current state.
+                x, y = get_abs(evfd, ABS_X)[0], get_abs(evfd, ABS_Y)[0]
+        except Exception as e:  # keep running across transient hotplug states
+            log(f'error: {e!r}')
+        if once:
+            return
+        ready = select.select([evfd], [], [], POLL)[0] if evfd is not None else time.sleep(POLL)
+        if not ready:
+            continue
+        try:
+            data = os.read(evfd, 24 * 64)
+        except BlockingIOError:
+            continue
+        except OSError:
+            os.close(evfd); evfd = None
+            continue
+        for i in range(0, len(data) - 23, 24):
+            _, _, typ, code, val = struct.unpack('qqHHi', data[i:i + 24])
+            if typ == 3 and code in (ABS_MT_X, ABS_X): x = val
+            elif typ == 3 and code in (ABS_MT_Y, ABS_Y): y = val
+            elif typ == 0 and code == 0: self_check(x, y)
+
+
+if __name__ == '__main__':
+    main()

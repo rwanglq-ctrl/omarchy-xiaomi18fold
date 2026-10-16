@@ -15,6 +15,10 @@ hl.config({
 })
 
 o.window({ tag = "default-opacity" }, { opacity = "1 1" })
+-- fold-ux4: every window fully opaque (performance on the llvmpipe renderer), including apps
+-- that drop Omarchy's default-opacity tag and bring their own translucent rule
+-- (Chromium/Firefox: "1.0 0.985" = slightly see-through when inactive). Last rule wins.
+o.window(".*", { opacity = "1 1" })
 
 hl.config({
   render = { cm_enabled = false },

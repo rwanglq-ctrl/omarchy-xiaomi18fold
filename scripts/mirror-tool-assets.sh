@@ -47,7 +47,7 @@ for manifest in ('aur-assets.json', 'lazyvim-assets.json'):
             raise SystemExit('Prepare desktop source bundles first: missing ' + str(target))
         m.verify(target, item['integrity'])
         lines += [hashlib.file_digest(target.open('rb'), 'sha256').hexdigest() + '  ' + target.name,
-                  '  ' + m.cn_url(dict(item, cn_url='https://gitee.com/zenbardofsuhe/omarchy-xiaomipad9pm/releases/download/tools-v0.2.9/' + target.name))]
+                  '  ' + m.cn_url(dict(item, cn_url='https://gitee.com/zenbardofsuhe/omarchy-xiaomi18fold/releases/download/tools-v0.2.9/' + target.name))]
 report.parent.mkdir(parents=True, exist_ok=True)
 report.write_text('\n'.join(lines) + '\n')
 print(report.read_text())

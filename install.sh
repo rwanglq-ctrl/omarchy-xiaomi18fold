@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # install.sh — one-click entry for omarchy-alarm-nspawn.
 #
-#   curl -fsSL https://raw.githubusercontent.com/rwanglq-ctrl/omarchy-xiaomipad9pm/main/install.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/rwanglq-ctrl/omarchy-xiaomi18fold/main/install.sh | bash
 #   ./install.sh [--dry-run] [--user NAME] [--profile core|full] [--yes]
 #
 # Debian 13 aarch64 (Android Linux Terminal host):
@@ -65,7 +65,7 @@ omarchy_session_instructions() {
   printf '%s\n' \
     '安装在 tmux 中运行；终端待机/SSH 断线不会终止安装（虚拟机关机或重启除外）。' \
     'Installation runs in tmux; terminal standby/SSH disconnect will not kill it (VM shutdown/reboot is excluded).' \
-    "重新连接 / Reattach: ${prefix}tmux attach -t omarchy-install" \
+    "重新连接 / Reattach: ${prefix}tmux attach -t omarchy-fold-install" \
     "日志 / Log: $log" \
     "跟随日志 / Follow log: ${prefix}tail -f '$log'" >&2
   if [[ -n ${TMUX_TMPDIR:-} ]]; then
@@ -85,11 +85,11 @@ omarchy_install_session() {
   if [[ -n ${TMUX:-} ]]; then
     current=$(tmux display-message -p -t "${TMUX_PANE:-}" '#{session_name}' 2>/dev/null || true)
   fi
-  if [[ -n ${OMARCHY_INSTALL_LOG:-} && $current != omarchy-install ]]; then
+  if [[ -n ${OMARCHY_INSTALL_LOG:-} && $current != omarchy-fold-install ]]; then
     echo '安装会话验证失败 / Cannot verify inherited install session; refusing to continue' >&2
     return 1
   fi
-  if [[ $current == omarchy-install ]]; then
+  if [[ $current == omarchy-fold-install ]]; then
     # The root host child inherits the same output descriptors and log marker.
     if [[ -z ${OMARCHY_INSTALL_LOG:-} ]]; then
       state=$HOME/.local/state/omarchy-alarm
@@ -104,7 +104,7 @@ omarchy_install_session() {
   state=$HOME/.local/state/omarchy-alarm
   log=$state/install.log
   omarchy_session_instructions "$log"
-  if ! tmux has-session -t '=omarchy-install' 2>/dev/null; then
+  if ! tmux has-session -t '=omarchy-fold-install' 2>/dev/null; then
     (umask 077; mkdir -p "$state"; touch "$log")
     runner=$(mktemp "$state/install-run.XXXXXX")
     # A new session on an existing server otherwise inherits stale environment.
@@ -142,19 +142,19 @@ omarchy_install_session() {
     } > "$runner"
     # Create detached first: losing the client while attaching cannot kill work.
     # Exact targets avoid matching similarly named user sessions.
-    if ! tmux new-session -d -s omarchy-install -c "$PWD" bash "$runner"; then
+    if ! tmux new-session -d -s omarchy-fold-install -c "$PWD" bash "$runner"; then
       rm -f -- "$runner"
-      tmux has-session -t '=omarchy-install' 2>/dev/null || return 1
+      tmux has-session -t '=omarchy-fold-install' 2>/dev/null || return 1
     fi
   else
     printf '%s\n' '使用已有安装会话，本次参数未重新执行 / Using existing install session; new arguments were not executed' >&2
   fi
   if [[ -n ${TMUX:-} ]]; then
-    tmux switch-client -t '=omarchy-install' || true
+    tmux switch-client -t '=omarchy-fold-install' || true
   elif [[ -t 1 ]]; then
     # main uses /dev/null. Reuse the real terminal fd: tmux rejects /dev/tty
     # as its tty name, even though opening that device succeeds.
-    tmux attach -t '=omarchy-install' <&1
+    tmux attach -t '=omarchy-fold-install' <&1
   fi
   printf '%s\n' '已交接至会话；安装结果请查看日志。/ Session handoff complete; check the log for the install result.' >&2
   # Returning would start a second installer in the original, fragile terminal.
@@ -226,9 +226,9 @@ bootstrap() (
   fi
   # Select source after auto detection. Explicit CN never contacts GitHub.
   if [[ $REPO_URL == gitee || ( -z $REPO_URL && ${MIRROR:-global} == cn ) ]]; then
-    REPO_URL=https://gitee.com/zenbardofsuhe/omarchy-xiaomipad9pm
+    REPO_URL=https://gitee.com/zenbardofsuhe/omarchy-xiaomi18fold
   elif [[ -z $REPO_URL ]]; then
-    REPO_URL=https://github.com/rwanglq-ctrl/omarchy-xiaomipad9pm
+    REPO_URL=https://github.com/rwanglq-ctrl/omarchy-xiaomi18fold
   fi
   if (( dry )); then
     log "DRY RUN: require git (Debian: apt-get update/install git ca-certificates), clone $REPO_URL, checkout $REPO_REF; no fetch or writes"

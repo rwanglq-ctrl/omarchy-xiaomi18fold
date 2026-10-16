@@ -558,6 +558,45 @@ PATHBLOCK
 done
 (( DRY_RUN )) && note "preview the rendered files with: host/install.sh --render-only DIR --user $TARGET_USER --rootfs $ROOTFS"
 
+
+install_fold_host_helpers() {
+  # Xiaomi 18 Fold: touch range sync, clipboard bridge, touch unstick, rescue
+  local fold="$SCRIPT_DIR/fold"
+  [[ -d $fold/bin ]] || { note "fold host helpers not in tree; skipped"; return 0; }
+  (( DRY_RUN )) && { note "would install fold host helpers from $fold"; return 0; }
+  install -d /usr/local/bin
+  for b in fold-touch-sync fold-touch-flush fold-touch-flushd fold-clip-bridge fold-rescue; do
+    [[ -f $fold/bin/$b ]] || continue
+    install -Dm755 "$fold/bin/$b" "/usr/local/bin/$b"
+  done
+  if [[ -f $fold/systemd/system/fold-touch-sync.service ]]; then
+    install -Dm644 "$fold/systemd/system/fold-touch-sync.service" /etc/systemd/system/fold-touch-sync.service
+    systemctl daemon-reload || true
+    systemctl enable --now fold-touch-sync.service || true
+  fi
+  if [[ -n ${T_HOME:-} && -d $T_HOME ]]; then
+    install -d "$T_HOME/.config/systemd/user"
+    for u in fold-clip-bridge fold-touch-flushd; do
+      [[ -f $fold/systemd/user/$u.service ]] || continue
+      install_user_file "$fold/systemd/user/$u.service" "$T_HOME/.config/systemd/user/$u.service" 644
+    done
+    if [[ -d /etc/sudoers.d ]]; then
+      cat > /etc/sudoers.d/fold-touch-flushd <<EOF
+$TARGET_USER ALL=(root) NOPASSWD: /usr/local/bin/fold-touch-flushd
+EOF
+      chmod 440 /etc/sudoers.d/fold-touch-flushd
+    fi
+    if [[ -n ${T_UID:-} && -S /run/user/$T_UID/bus ]]; then
+      run runuser -u "$TARGET_USER" -- env XDG_RUNTIME_DIR="/run/user/$T_UID" systemctl --user daemon-reload || true
+      run runuser -u "$TARGET_USER" -- env XDG_RUNTIME_DIR="/run/user/$T_UID" systemctl --user enable --now fold-clip-bridge.service || true
+      run runuser -u "$TARGET_USER" -- env XDG_RUNTIME_DIR="/run/user/$T_UID" systemctl --user enable --now fold-touch-flushd.service || true
+    else
+      note "user manager not running; enable fold-clip-bridge / fold-touch-flushd after login"
+    fi
+  fi
+}
+
+
 # --- 7. display hook -------------------------------------------------------------------
 log "7/7 weston.service drop-in"
 if (( ! DISPLAY_HOOK )); then
@@ -582,6 +621,9 @@ fi
 if (( ! DRY_RUN )) && ! sudo -l -U "$TARGET_USER" 2>/dev/null | grep -q 'NOPASSWD'; then
   warn "$TARGET_USER has no passwordless sudo on this host; hypr-session/arch-hyprland need it (sudo -n) to start the container from weston.service"
 fi
+
+log "7b/7 fold host helpers (touch sync, clipboard, unstick)"
+install_fold_host_helpers
 
 log "host side done"
 note "enter the container:      archbox        (shell in the running desktop: archsh)"

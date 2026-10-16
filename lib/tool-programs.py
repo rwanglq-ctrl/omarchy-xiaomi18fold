@@ -22,7 +22,7 @@ import urllib.request
 
 ROOT = Path(__file__).resolve().parents[1]
 CN_HOSTS = {'registry.npmmirror.com', 'cdn.npmmirror.com', 'gitee.com', 'foruda.gitee.com'}
-GITEE_ASSET_PATH = '/zenbardofsuhe/omarchy-xiaomipad9pm/releases/download/tools-v0.2.9/'
+GITEE_ASSET_PATH = '/zenbardofsuhe/omarchy-xiaomi18fold/releases/download/tools-v0.2.9/'
 
 
 def cn_url(asset):

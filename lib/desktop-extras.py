@@ -13,7 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 spec = importlib.util.spec_from_file_location('tool_programs', ROOT / 'lib/tool-programs.py')
 programs = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(programs)
-BASE = 'https://gitee.com/zenbardofsuhe/omarchy-xiaomipad9pm/releases/download/tools-v0.2.9/'
+BASE = 'https://gitee.com/zenbardofsuhe/omarchy-xiaomi18fold/releases/download/tools-v0.2.9/'
 
 
 def asset(item, cache, mirror):

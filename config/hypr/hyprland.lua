@@ -2,6 +2,9 @@
 dofile((os.getenv("OMARCHY_PATH") or "/usr/share/omarchy") .. "/default/hypr/bootstrap.lua")
 
 
+-- Fold: mirror SUPER bindings onto Alt (Android keyboard has no Super/Caps). Must load first.
+require("hypr.fold_modifier")
+
 require("default.hypr.omarchy")
 
 require("hypr.envs")
@@ -10,6 +13,8 @@ require("hypr.input")
 require("hypr.bindings")
 require("hypr.looknfeel")
 require("hypr.autostart")
+-- Fold: touch gestures (hyprgrass plugin). Disable: touch ~/.config/hypr/hyprgrass-disabled
+require("hypr.touch")
 
 require("default.hypr.toggles")
 

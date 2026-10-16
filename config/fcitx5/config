@@ -4,11 +4,43 @@ EnumerateWithTriggerKeys=True
 # Skip first input method while enumerating
 EnumerateSkipFirst=False
 
-# Toggle English/Rime with Shift alone (Ctrl+Space is the tmux prefix)
+# fold-ime-fix: toggle English (keyboard-us) <-> Chinese (Rime)
+#   Ctrl+Space        primary, works with every keyboard that has Ctrl
+#   Ctrl+Shift+Space  fallback
+#   Shift_L / Shift_R tap alone (press+release, no other key); needs a keyboard
+#                     that sends a real Shift key event (BT/physical); the Android
+#                     soft keyboard usually sends no lone Shift, so use Ctrl+Space there.
+# Super/Alt+Space are left to Omarchy's menu (hypr), not used here.
+# herdr prefix is ctrl+b; tmux keeps C-b as prefix2.
 [Hotkey/TriggerKeys]
-0=Shift_L
-1=Shift_R
+0=Control+space
+1=Control+Shift+space
+2=Shift_L
+3=Shift_R
 
-# Default is Shift_L, which would fight with TriggerKeys; bind to an unused key
+# Default is Shift_L which fights TriggerKeys — leave empty / unused
 [Hotkey/AltTriggerKeys]
 0=
+
+[Hotkey/EnumerateForwardKeys]
+0=
+
+[Hotkey/EnumerateBackwardKeys]
+0=
+
+# Only one group; never grab Super+Space
+[Hotkey/EnumerateGroupForwardKeys]
+0=
+
+[Hotkey/EnumerateGroupBackwardKeys]
+0=
+
+[Behavior]
+# Share state across programs
+ShareInputState=No
+# Show preedit in app
+PreeditInApplication=True
+Custom=True
+
+[Behavior/DisabledAddOns]
+0=notificationitem

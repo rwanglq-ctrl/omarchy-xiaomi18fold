@@ -8,3 +8,6 @@ hl.env("QT_IM_MODULE", "fcitx")
 hl.env("XMODIFIERS", "@im=fcitx")
 hl.env("SDL_IM_MODULE", "fcitx")
 hl.env("OMARCHY_OCR_LANGS", "chi_sim+eng")
+
+-- fold-ux11: GTK3/XWayland apps need this; Wayland text-input still works for Chromium/GTK4
+hl.env("GTK_IM_MODULE", "fcitx")

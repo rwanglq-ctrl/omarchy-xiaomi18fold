@@ -1,0 +1,84 @@
+#!/bin/bash
+# fold-dismiss-overlays — "回桌面": close every popup/overlay that can cover the fold's screen.
+#
+# Usage: fold-dismiss-overlays [auto|popups|desktop|status]     (default: auto)
+#   popups   close nwg-drawer, fold-window-menu, the Omarchy menu and other Omarchy shell
+#            overlays (clipboard, emoji, image picker, QR/speed-test panels), kill stuck ones
+#   desktop  popups + show the bare desktop (switch to an empty workspace; your windows stay
+#            where they are — tap a workspace number in the bar / 4-finger swipe to go back)
+#   auto     like a phone's home gesture: if something was open, close it; if nothing was
+#            open, go to the desktop
+#   status   list the layer surfaces that are currently on screen
+# Wired to: 4-finger swipe up (touch.lua), the dock's "回桌面" button, the window menu's
+# "回桌面" button.  Over SSH (phone host): ~/fold-fix-tools/fx 'fold-dismiss-overlays desktop'
+set -u
+export XDG_RUNTIME_DIR=${XDG_RUNTIME_DIR:-/run/user/$(id -u)}
+if [[ -z ${HYPRLAND_INSTANCE_SIGNATURE:-} ]]; then
+  HYPRLAND_INSTANCE_SIGNATURE=$(ls -t "$XDG_RUNTIME_DIR/hypr" 2>/dev/null | head -1)
+  export HYPRLAND_INSTANCE_SIGNATURE
+fi
+PATH="$HOME/.local/bin:/usr/share/omarchy/bin:$PATH"
+LOG="$HOME/.local/state/omarchy-alarm/fold-dismiss-overlays.log"
+mkdir -p "${LOG%/*}"
+log() { printf '%s %s\n' "$(date '+%F %T')" "$*" >>"$LOG"; }
+
+# layer namespace -> how to close it. Anything not listed and not in KEEP is reported.
+KEEP='^(omarchy-background|omarchy-bar|omarchy-bar-drag-ghost|omarchy-bar-move-ghost|omarchy-notifications|omarchy-osd|omarchy-polkit|omarchy-lock.*|nwg-dock|wvkbd|hyprpaper|swaybg)$'
+declare -A SHELL_PLUGIN=(
+  [omarchy-menu]=omarchy.menu [omarchy-clipboard]=omarchy.clipboard [omarchy-emojis]=omarchy.emojis
+  [omarchy-image-selector]=omarchy.image-picker [omarchy-network-qr]=omarchy.wifiqr
+  [omarchy-network-speedtest]=omarchy.speedtest [omarchy-disk-speedtest]=omarchy.disk-speedtest
+  [omarchy-reminders]=omarchy.reminders [omarchy-keyboard-panel]=omarchy.keyboard-panel
+)
+
+layers() { hyprctl -j layers 2>/dev/null | jq -r '.[].levels[][] | "\(.namespace) \(.pid)"' 2>/dev/null; }
+
+close_popups() {
+  local closed=0 ns pid
+  while read -r ns pid; do
+    [[ -n $ns ]] || continue
+    [[ $ns =~ $KEEP ]] && continue
+    case $ns in
+      nwg-drawer) fold-drawer close; closed=1 ;;
+      fold-window-menu) fold-window-menu close; closed=1 ;;
+      *)
+        if [[ -n ${SHELL_PLUGIN[$ns]:-} ]]; then
+          omarchy-shell -q shell hide "${SHELL_PLUGIN[$ns]}"; closed=1
+        elif [[ $ns == omarchy-* ]]; then
+          log "unknown shell overlay $ns (pid $pid) left alone"
+        elif [[ $pid =~ ^[0-9]+$ ]] && (( pid != $(pgrep -o -x quickshell || echo 0) )); then
+          # a foreign layer surface (e.g. a stray launcher) covering the screen: terminate it
+          log "terminating unknown overlay $ns (pid $pid)"; kill "$pid" 2>/dev/null; closed=1
+        fi ;;
+    esac
+  done < <(layers | sort -u)
+  # second pass: anything that did not go away within 1 s gets killed (stuck surfaces)
+  if (( closed )); then
+    local i
+    for ((i = 0; i < 10; i++)); do
+      layers | grep -qE '^(nwg-drawer|fold-window-menu) ' || break
+      sleep 0.1
+    done
+    if layers | grep -q '^nwg-drawer '; then log "nwg-drawer stuck; killing"; pkill -u "$(id -u)" -f '^nwg-drawer ' ; fi
+    if layers | grep -q '^fold-window-menu '; then log "fold-window-menu stuck; killing"; pkill -u "$(id -u)" -f 'bin/fold-window-menu' ; fi
+    # fold-ux9: the gesture that opened the popup may have lost a finger lift (hyprgrass then cancels
+    # every touch); ask the phone host to lift stale touch slots (never taps; no-op if all clean)
+    fold-touch-flush-req dismiss-overlays
+  fi
+  return $((!closed))
+}
+
+go_desktop() {
+  # leave fullscreen/special workspace and show an empty workspace (the wallpaper)
+  hyprctl dispatch 'hl.dsp.focus({ workspace = "empty" })' >/dev/null 2>&1 ||
+    hyprctl eval 'hl.dispatch(hl.dsp.focus({ workspace = "empty" }))' >/dev/null 2>&1
+}
+
+case ${1:-auto} in
+  popups) close_popups || true ;;
+  desktop) close_popups || true; go_desktop ;;
+  auto) close_popups || go_desktop ;;
+  status) layers | sort -u ;;
+  *) echo "usage: fold-dismiss-overlays [auto|popups|desktop|status]" >&2; exit 2 ;;
+esac
+exit 0

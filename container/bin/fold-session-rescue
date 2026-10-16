@@ -1,0 +1,37 @@
+#!/bin/bash
+# fold-rescue — one-shot recovery when the fold's screen looks black / frozen / covered.
+# Safe to run any time (from SSH: ~/fold-fix-tools/fold-rescue on the phone host, which also
+# resets the touchscreen). Steps:
+#   1. close every popup/overlay (drawer, window menu, Omarchy menu, ...)
+#   2. turn DPMS on; if no real output is enabled (FALLBACK only) reload Hyprland
+#   3. restart the Omarchy shell if the bar/wallpaper is missing
+#   4. restart fold-display-guard (it then brings back dock + resident drawer within ~10 s)
+#   5. print a short status
+set -u
+export XDG_RUNTIME_DIR=${XDG_RUNTIME_DIR:-/run/user/$(id -u)}
+if [[ -z ${HYPRLAND_INSTANCE_SIGNATURE:-} ]]; then
+  HYPRLAND_INSTANCE_SIGNATURE=$(ls -t "$XDG_RUNTIME_DIR/hypr" 2>/dev/null | head -1)
+  export HYPRLAND_INSTANCE_SIGNATURE
+fi
+PATH="$HOME/.local/bin:/usr/share/omarchy/bin:$PATH"
+hc() { timeout 5 hyprctl "$@"; }
+if ! hc version >/dev/null 2>&1; then
+  echo "Hyprland does not answer IPC (hung or not running). Only a session restart helps:"
+  echo "  phone host: systemctl --user restart weston   (or restart the Terminal app / VM)"
+  exit 1
+fi
+echo "1) closing popups"; fold-dismiss-overlays popups
+echo "2) display"
+hc dispatch 'hl.dsp.dpms({ action = "enable" })' >/dev/null 2>&1
+real_on=$(hc -j monitors all | jq '[.[] | select((.name | test("^(FALLBACK|HEADLESS)")) | not) | select(.disabled == false)] | length')
+if [[ $real_on == 0 ]]; then echo "   no real output enabled -> hyprctl reload"; hc reload >/dev/null; sleep 2; fi
+echo "3) shell"
+layers=$(hc layers)
+if ! grep -q 'namespace: omarchy-bar,' <<<"$layers"; then echo "   bar missing -> omarchy-restart-shell"; omarchy-restart-shell; fi
+echo "4) guard"; fold-display-guard restart
+sleep 3
+echo "--- status"
+hc monitors all | grep -E '^Monitor|disabled|dpmsStatus'
+hc layers | grep -oE 'namespace: [a-z-]+' | sort | uniq -c
+echo "guard pid $(cat "$XDG_RUNTIME_DIR/fold-display-guard.pid" 2>/dev/null)"
+pgrep -af 'bin/fold-dock$|fold-drawer daemon$|^nwg-dock-hyprland |^nwg-drawer ' | cut -c1-80

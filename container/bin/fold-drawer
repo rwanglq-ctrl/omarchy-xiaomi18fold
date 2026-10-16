@@ -1,0 +1,4 @@
+#!/bin/bash
+# Fold: touch-friendly nwg-drawer (large icons, 4 columns for the 836 px wide screen).
+# Running it again while the drawer is open toggles it closed (nwg-drawer single-instance behaviour).
+exec nwg-drawer -wm hyprland -ovl -is 72 -c 4 -spacing 24 -term foot -fm nautilus -closebtn right "$@"

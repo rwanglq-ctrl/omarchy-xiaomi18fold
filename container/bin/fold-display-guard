@@ -1,0 +1,248 @@
+#!/bin/bash
+# Fold/AVF display-hotplug guard (autostarted from ~/.config/hypr/autostart.lua).
+#
+# The Android Terminal display is replaced by a new Virtual-N connector when the VM
+# surface attaches after boot and on every fold/unfold. Fallout seen on the fold:
+#   - wvkbd exits when its output disappears (only restarted when the OSK is opted
+#     in with ~/.config/omarchy-osk-autostart; default is the Android keyboard);
+#   - a real output can be left disabled behind Hyprland's FALLBACK (black screen);
+#   - the shell can come up on a placeholder screen without wallpaper/bar layers;
+#   - DPMS left off while stay-awake is enabled.
+# fold-ux4 additions:
+#   - the dock (fold-dock wrapper / nwg-dock layer) and the resident app drawer daemon are
+#     brought back if they died (wrapper gave up, layer missing on the active output);
+#   - after an output swap, popups (drawer / window menu) are closed and the resident drawer
+#     is re-created on the new output, so no stale full-screen surface is left behind;
+#   - any app window opening or any workspace switch closes a leftover drawer / window menu
+#     (a full-screen popup over a new window looked like a frozen screen);
+#   - every hyprctl call has a timeout (a wedged IPC call must not wedge the guard);
+#   - socat no longer inherits the guard's flock (an orphan socat blocked guard restarts).
+# fold-ux9 additions:
+#   - whenever a popup layer closes (window menu, drawer, Omarchy menu/panels; any close path, also
+#     kill/crash), ask the phone host to lift touch slots whose lift Android swallowed
+#     (fold-touch-flush-req -> host fold-touch-flushd); otherwise hyprgrass can keep cancelling
+#     every touch after the gesture that opened the popup;
+#   - a popup that stays open longer than POPUP_MAX_S (default 120 s) is closed via
+#     fold-dismiss-overlays popups (the window menu itself already closes after 20 s idle).
+# Each event (and a slow poll as backstop) re-checks and repairs those states.
+set -u
+export XDG_RUNTIME_DIR=${XDG_RUNTIME_DIR:-/run/user/$(id -u)}
+if [[ -z ${HYPRLAND_INSTANCE_SIGNATURE:-} ]]; then
+  HYPRLAND_INSTANCE_SIGNATURE=$(ls -t "$XDG_RUNTIME_DIR/hypr" 2>/dev/null | head -1)
+  export HYPRLAND_INSTANCE_SIGNATURE
+fi
+SOCKET="$XDG_RUNTIME_DIR/hypr/$HYPRLAND_INSTANCE_SIGNATURE/.socket2.sock"
+# fold-ux4: `fold-display-guard restart` = stop running guards (and their socat) and start a
+# fresh one from Hyprland, so it inherits the session environment.
+if [[ ${1:-} == restart ]]; then
+  g=$(cat "$XDG_RUNTIME_DIR/fold-display-guard.pid" 2>/dev/null)
+  if [[ $g =~ ^[0-9]+$ ]] && tr '\0' ' ' <"/proc/$g/cmdline" 2>/dev/null | grep -q 'bin/fold-display-guard *$'; then
+    pkill -P "$g" -x socat; kill "$g"
+  else   # pre-fold-ux4 guard without pidfile
+    for g in $(pgrep -u "$(id -u)" -f 'bin/fold-display-guard$'); do pkill -P "$g" -x socat; kill "$g"; done
+  fi
+  sleep 0.5
+  timeout 5 hyprctl dispatch 'hl.dsp.exec_cmd("fold-display-guard")' >/dev/null && echo "guard restarted"
+  exit 0
+fi
+LOG="$HOME/.local/state/omarchy-alarm/fold-display-guard.log"
+STAY_AWAKE="$HOME/.local/state/omarchy/indicators/stay-awake"
+OSK_HIDDEN_FLAG="$HOME/.config/omarchy-osk-start-hidden"
+OSK_AUTOSTART_FLAG="$HOME/.config/omarchy-osk-autostart"
+DOCK_OFF_FLAG="$HOME/.config/fold-dock-disabled"
+DRAWER_OFF_FLAG="$HOME/.config/fold-drawer-no-resident"
+mkdir -p "${LOG%/*}"
+hyprctl() { timeout 5 /usr/bin/hyprctl "$@"; }
+# Single instance via a pidfile (checked under a short-lived flock). fold-ux4: the old code kept
+# the flock fd open for the guard's lifetime, so every long-lived child (socat, a restarted
+# dock, the drawer daemon) inherited it and blocked all later guards after the guard died.
+PIDFILE="$XDG_RUNTIME_DIR/fold-display-guard.pid"
+exec 8>"$XDG_RUNTIME_DIR/fold-display-guard.pid.lock"
+flock -w 3 8 || exit 0
+other=$(cat "$PIDFILE" 2>/dev/null)
+if [[ $other =~ ^[0-9]+$ && $other != "$$" ]] && tr '\0' ' ' <"/proc/$other/cmdline" 2>/dev/null | grep -q 'bin/fold-display-guard *$'; then
+  exit 0
+fi
+echo $$ >"$PIDFILE"
+exec 8>&-
+
+log() { printf '%s %s\n' "$(date '+%F %T')" "$*" >>"$LOG"; }
+missing_layers=0
+missing_dock=0
+last_shell_restart=0
+last_dock_restart=-100
+last_reload=-100
+last_popup_close=0
+last_active=''
+POPUP_NS='^(fold-window-menu|nwg-drawer|omarchy-(menu|clipboard|emojis|image-selector|network-qr|network-speedtest|disk-speedtest|reminders|keyboard-panel))$'
+POPUP_MAX_S=${FOLD_POPUP_MAX_S:-120}
+declare -A popup_since=()
+
+real_monitors() {
+  hyprctl -j monitors all 2>/dev/null | jq -r '.[] | select(.name | test("^(FALLBACK|HEADLESS)"; "i") | not) | "\(.name) \(.disabled) \(.dpmsStatus)"'
+}
+
+check() {
+  local mons name disabled dpms enabled=0 any=0
+  mons=$(real_monitors) || return
+  while read -r name disabled dpms; do
+    [[ -n $name ]] || continue
+    any=1
+    [[ $disabled == false ]] && enabled=1
+    if [[ $disabled == false && $dpms == false && -f $STAY_AWAKE ]]; then
+      log "dpms off on $name while stay-awake is on; enabling"
+      hyprctl dispatch "hl.dsp.dpms({ action = \"enable\", monitor = \"$name\" })" >/dev/null 2>&1
+    fi
+  done <<<"$mons"
+
+  # A real output exists but none is enabled: only FALLBACK is drawing.
+  # Rate-limited: the reload itself emits configreloaded, which re-enters check.
+  if (( any && ! enabled && SECONDS - last_reload > 30 )); then
+    log "no real output enabled (FALLBACK only); reloading monitor config"
+    last_reload=$SECONDS
+    hyprctl reload >/dev/null 2>&1
+    sleep 2
+  fi
+
+  # Shell wallpaper and bar must be present on every enabled real output.
+  local layers absent=0
+  layers=$(hyprctl -j layers 2>/dev/null) || layers='{}'
+  while read -r name disabled _; do
+    [[ -n $name && $disabled == false ]] || continue
+    for ns in omarchy-background omarchy-bar; do
+      jq -e --arg m "$name" --arg ns "$ns" \
+        '.[$m].levels // {} | [.[][] | select(.namespace == $ns)] | length > 0' <<<"$layers" >/dev/null 2>&1 || absent=1
+    done
+  done <<<"$(real_monitors)"
+  if (( absent )); then
+    missing_layers=$((missing_layers + 1))
+  else
+    missing_layers=0
+  fi
+  # Two consecutive misses (several seconds) and at most one restart per minute.
+  if (( missing_layers >= 2 && SECONDS - last_shell_restart > 60 )); then
+    log "shell wallpaper/bar missing on an active output; restarting shell"
+    omarchy-restart-shell >>"$LOG" 2>&1
+    last_shell_restart=$SECONDS
+    missing_layers=0
+  fi
+
+  # Dock: the wrapper respawns nwg-dock, but gives up after 5 quick exits (e.g. during an
+  # output swap storm). Restart the wrapper; if the process lives but its layer is gone from
+  # the active output for 2 checks, kill nwg-dock so the wrapper re-creates it.
+  if [[ ! -f $DOCK_OFF_FLAG ]] && command -v fold-dock >/dev/null; then
+    if ! pgrep -u "$(id -u)" -f 'bin/fold-dock$' >/dev/null && ! pgrep -u "$(id -u)" -f '^nwg-dock-hyprland ' >/dev/null; then
+      log "fold-dock wrapper not running; restarting dock"
+      setsid fold-dock </dev/null >/dev/null 2>&1 &
+      missing_dock=0
+    elif (( enabled )) && ! jq -e '[.[].levels[][] | select(.namespace == "nwg-dock")] | length > 0' <<<"$layers" >/dev/null 2>&1; then
+      missing_dock=$((missing_dock + 1))
+      if (( missing_dock >= 2 && SECONDS - last_dock_restart > 60 )); then
+        log "nwg-dock layer missing on the active output; restarting nwg-dock"
+        pkill -u "$(id -u)" -f '^nwg-dock-hyprland ' ; last_dock_restart=$SECONDS; missing_dock=0
+      fi
+    else
+      missing_dock=0
+    fi
+  fi
+
+  # Resident app drawer (fold-drawer daemon): keep it alive so the drawer opens in ~0.1 s.
+  if [[ ! -f $DRAWER_OFF_FLAG ]] && command -v fold-drawer >/dev/null &&
+     ! pgrep -u "$(id -u)" -f 'bin/fold-drawer daemon$' >/dev/null; then
+    log "fold-drawer daemon not running; starting it"
+    setsid fold-drawer daemon </dev/null >/dev/null 2>&1 &
+  fi
+
+  # wvkbd exits when its output is removed; bring the keyboard back, but only when
+  # the OSK is opted in. Default on the fold is the Android keyboard: never start it.
+  if [[ -f $OSK_AUTOSTART_FLAG ]] && command -v omarchy-osk-toggle >/dev/null && ! pgrep -u "$(id -u)" -x 'wvkbd-(mobintl|deskintl)' >/dev/null; then
+    log "wvkbd not running; restarting on-screen keyboard"
+    if [[ -f $OSK_HIDDEN_FLAG ]]; then
+      setsid omarchy-osk-toggle start-hidden </dev/null >/dev/null 2>&1
+    else
+      setsid omarchy-osk-toggle start </dev/null >/dev/null 2>&1
+    fi
+  fi
+}
+
+# Close a leftover full-screen drawer / window menu (cheap: one hyprctl call, at most 1/s).
+close_popups() {
+  (( SECONDS - last_popup_close >= 1 )) || return 0
+  last_popup_close=$SECONDS
+  local ls
+  ls=$(hyprctl layers 2>/dev/null) || return 0
+  if grep -q 'namespace: nwg-drawer,' <<<"$ls"; then fold-drawer close; fi
+  if grep -q 'namespace: fold-window-menu,' <<<"$ls"; then fold-window-menu close; fi
+}
+
+# After an output swap: no popup may stay on (or for) the old output; re-create the
+# resident drawer so its next surface is sized for the new output.
+# Debounced: a swap emits a burst of events (FALLBACK added/removed, reloads), so the drawer
+# is re-created once, 5 s after the last output event.
+RESTART_TOKEN="$XDG_RUNTIME_DIR/fold-drawer-restart.token"
+after_output_change() {
+  last_popup_close=0
+  close_popups
+  if [[ ! -f $DRAWER_OFF_FLAG ]] && command -v fold-drawer >/dev/null; then
+    local tok=$RANDOM$RANDOM
+    echo "$tok" >"$RESTART_TOKEN"
+    (
+      sleep 5
+      [[ $(cat "$RESTART_TOKEN" 2>/dev/null) == "$tok" ]] || exit 0
+      log "output changed; re-creating resident drawer"
+      setsid fold-drawer restart </dev/null >/dev/null 2>&1
+    ) 9>&- </dev/null >/dev/null 2>&1 &
+  fi
+}
+
+# fold-ux9: close popups left open for more than POPUP_MAX_S (cheap: arithmetic unless one expired)
+popup_watch() {
+  local ns
+  for ns in "${!popup_since[@]}"; do
+    if (( SECONDS - popup_since[$ns] > POPUP_MAX_S )); then
+      log "popup $ns open > ${POPUP_MAX_S}s; closing popups"
+      unset 'popup_since[$ns]'
+      fold-dismiss-overlays popups
+    fi
+  done
+}
+
+log "start instance=$HYPRLAND_INSTANCE_SIGNATURE"
+sleep 3
+check
+# 9>&- : socat must not inherit the flock, or an orphaned socat blocks every later guard.
+coproc EVENTS { exec socat -U - "UNIX-CONNECT:$SOCKET" 2>/dev/null 9>&-; }
+# Event-driven, with a 10 s read timeout as the polling backstop.
+while true; do
+  if IFS= read -r -t 10 -u "${EVENTS[0]}" event; then
+    case $event in
+      monitoradded*|monitorremoved*) sleep 2; check; after_output_change ;;
+      configreloaded*) sleep 2; check ;;
+      openlayer\>\>*)
+        ns=${event#openlayer>>}
+        [[ $ns =~ $POPUP_NS ]] && popup_since[$ns]=$SECONDS ;;
+      closelayer\>\>*)
+        ns=${event#closelayer>>}
+        if [[ $ns =~ $POPUP_NS ]]; then
+          unset 'popup_since[$ns]'
+          fold-touch-flush-req "closelayer:$ns"
+        fi ;;
+      openwindow\>\>*|workspacev2\>\>*) close_popups ;;
+      # focus moved to a *different* real window (e.g. a dock icon focused a running app
+      # under the drawer). Empty/same address = focus bounced via a layer: ignore.
+      activewindowv2\>\>*)
+        addr=${event#activewindowv2>>}
+        if [[ -n $addr && $addr != "$last_active" ]]; then
+          [[ -n $last_active ]] && close_popups
+          last_active=$addr
+        fi ;;
+    esac
+    (( ${#popup_since[@]} )) && popup_watch
+  elif (( $? > 128 )); then
+    check
+    popup_watch
+  else
+    log "event socket closed; compositor gone, exiting"
+    exit 0
+  fi
+done

@@ -20,7 +20,7 @@ also turn blocked endpoints into long apparent hangs.
 
 | Location / stage | Original destination or operation | CN behavior |
 | --- | --- | --- |
-| README / install.sh pipe entry | GitHub raw `/main/install.sh` | CN commands fetch `https://gitee.com/zenbardofsuhe/omarchy-xiaomipad9pm/raw/main/install.sh`; no GitHub access required. Check the resolved commit printed by bootstrap. |
+| README / install.sh pipe entry | GitHub raw `/main/install.sh` | CN commands fetch `https://gitee.com/zenbardofsuhe/omarchy-xiaomi18fold/raw/main/install.sh`; no GitHub access required. Check the resolved commit printed by bootstrap. |
 | install.sh bootstrap | `git clone --no-checkout --branch REF` (main for a SHA), then verified commit checkout; `OMARCHY_ALARM_REPO` / `OMARCHY_ALARM_REF` | CN defaults to Gitee; `OMARCHY_ALARM_REPO=gitee` is also accepted. Explicit trusted repository overrides are honored. Branches, tags and full commit SHA supported; bounded 300s clone, fail clearly on error. |
 | install.sh Git prerequisite | Debian apt installs `git ca-certificates` when Git is missing | CN uses temporary signed HTTP mainland apt sources for bootstrap, then normal host setup selects HTTPS. No source archive fallback or archive override. |
 | install.sh / lib/network.sh auto mode | HEAD probes of both `https://github.com` and `https://raw.githubusercontent.com` | Both must succeed for global; otherwise CN. Bounded probes, offline dry runs. Bootstrap selects before fetching the checkout. |

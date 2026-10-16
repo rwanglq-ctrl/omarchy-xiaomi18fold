@@ -1,0 +1,99 @@
+#!/usr/bin/env bash
+# Toggle wvkbd on-screen keyboard for Wayland / Hyprland.
+# Usage: omarchy-osk-toggle [toggle|start|start-hidden|show|hide|stop|restart]
+# Fold: prefers ~/.local/bin/wvkbd-deskintl (wvkbd 0.20 + omarchy-tablet-experience "▼" hide
+# key + fold "cli" layer: Esc/Tab/^C/^D/^R/... for shells and AI CLIs). Layers: full, special, cli
+# (⌨ key cycles; "CLI" key on the bottom row jumps straight there, "Abc" back). WVKBD_BIN=wvkbd-mobintl
+# restores the phone layout. Source/patch: ~/src/wvkbd-fold (see fold-tablet-ref REPORT.md).
+# Fold: not autostarted (Android keyboard is used). Set ~/.config/omarchy-osk-autostart to
+# start it with Hyprland and have fold-display-guard bring it back after display hotplugs.
+set -euo pipefail
+
+if [[ -z "${WVKBD_BIN:-}" ]] && command -v wvkbd-deskintl >/dev/null; then
+  WVKBD_BIN=wvkbd-deskintl
+fi
+BIN=${WVKBD_BIN:-wvkbd-mobintl}
+# Fold / tablet: taller in portrait, a bit shorter in landscape
+if [[ $(basename "$BIN") == wvkbd-deskintl ]]; then
+  HEIGHT=${WVKBD_HEIGHT:-340}
+  LANDSCAPE_HEIGHT=${WVKBD_LANDSCAPE_HEIGHT:-280}
+  LAYERS=${WVKBD_LAYERS:-full,special,cli}
+  LANDSCAPE_LAYERS=${WVKBD_LANDSCAPE_LAYERS:-full,special,cli}
+else
+  HEIGHT=${WVKBD_HEIGHT:-360}
+  LANDSCAPE_HEIGHT=${WVKBD_LANDSCAPE_HEIGHT:-260}
+  LAYERS=${WVKBD_LAYERS:-full,special,emoji,simple}
+  LANDSCAPE_LAYERS=${WVKBD_LANDSCAPE_LAYERS:-landscape,landscapespecial,emoji}
+fi
+
+action=${1:-toggle}
+
+pids=$(pgrep -x "$(basename "$BIN")" || true)
+
+start_kb() {
+  local hidden_flag=()
+  if [[ "${1:-}" == "hidden" ]]; then
+    hidden_flag=(--hidden)
+  fi
+  # Prefer session Wayland; fall back to common socket names.
+  export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+  if [[ -z "${WAYLAND_DISPLAY:-}" ]]; then
+    if [[ -S "$XDG_RUNTIME_DIR/wayland-1" ]]; then
+      export WAYLAND_DISPLAY=wayland-1
+    elif [[ -S "$XDG_RUNTIME_DIR/wayland-0" ]]; then
+      export WAYLAND_DISPLAY=wayland-0
+    fi
+  fi
+  nohup "$BIN" \
+    -H "$HEIGHT" \
+    -L "$LANDSCAPE_HEIGHT" \
+    -l "$LAYERS" \
+    --landscape-layers "$LANDSCAPE_LAYERS" \
+    "${hidden_flag[@]}" \
+    >/tmp/wvkbd.log 2>&1 &
+  disown || true
+}
+
+case "$action" in
+  start)
+    if [[ -z "$pids" ]]; then
+      start_kb
+    fi
+    ;;
+  start-hidden)
+    if [[ -z "$pids" ]]; then
+      start_kb hidden
+    fi
+    ;;
+  show)
+    if [[ -z "$pids" ]]; then
+      start_kb
+    else
+      kill -USR2 $pids
+    fi
+    ;;
+  hide)
+    if [[ -n "$pids" ]]; then
+      kill -USR1 $pids
+    fi
+    ;;
+  stop)
+    # stop either build (a mobintl left over from before the switch, too)
+    pkill -u "$(id -u)" -x 'wvkbd-(mobintl|deskintl)' || true
+    ;;
+  restart)
+    if [[ -n "$pids" ]]; then
+      kill $pids || true
+      sleep 0.2
+    fi
+    start_kb
+    ;;
+  toggle|*)
+    if [[ -z "$pids" ]]; then
+      start_kb
+    else
+      # SIGRTMIN = toggle visibility
+      kill -RTMIN $pids
+    fi
+    ;;
+esac

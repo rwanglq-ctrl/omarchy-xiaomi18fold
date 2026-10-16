@@ -39,15 +39,15 @@ for tool in manifest['tools']:
 for host in ('github.com', 'raw.githubusercontent.com', 'api.github.com', 'registry.npmjs.org', 'ghfast.top', 'downloads.cursor.com'):
     for url in ('https://' + host + '/asset', 'https://registry.npmmirror.com@' + host + '/asset'):
         try:
-            m.RedirectPolicy('cn').redirect_request(urllib.request.Request('https://gitee.com/zenbardofsuhe/omarchy-xiaomipad9pm/releases/download/tools-v0.2.9/asset'), None, 302, '', {}, url)
+            m.RedirectPolicy('cn').redirect_request(urllib.request.Request('https://gitee.com/zenbardofsuhe/omarchy-xiaomi18fold/releases/download/tools-v0.2.9/asset'), None, 302, '', {}, url)
         except ValueError:
             pass
         else:
             raise AssertionError('CN redirected to forbidden host: ' + host)
 m.check_url('https://github.com/upstream/file', 'global')
 for path in ('/someone/third-party/releases/download/v1/file',
-             '/zenbardofsuhe/omarchy-xiaomipad9pm/releases/download/tools-v0.2.9/../file',
-             '/zenbardofsuhe/omarchy-xiaomipad9pm/releases/download/tools-v0.2.9/%2e%2e%2ffile'):
+             '/zenbardofsuhe/omarchy-xiaomi18fold/releases/download/tools-v0.2.9/../file',
+             '/zenbardofsuhe/omarchy-xiaomi18fold/releases/download/tools-v0.2.9/%2e%2e%2ffile'):
     try:
         m.check_url('https://gitee.com' + path, 'cn')
     except ValueError:
@@ -58,7 +58,7 @@ for path in ('/someone/third-party/releases/download/v1/file',
 
 # Accept Gitee's official release -> owned attachment -> official CDN chain.
 release = 'https://gitee.com' + m.GITEE_ASSET_PATH + 'fixture.tar.gz'
-attachment = 'https://gitee.com/zenbardofsuhe/omarchy-xiaomipad9pm/attach_files/123/download/fixture.tar.gz'
+attachment = 'https://gitee.com/zenbardofsuhe/omarchy-xiaomi18fold/attach_files/123/download/fixture.tar.gz'
 cdn = 'https://foruda.gitee.com/attach_file/fixture/fixture.tar.gz'
 policy = m.RedirectPolicy('cn')
 request = policy.redirect_request(urllib.request.Request(release), None, 302, '', {}, attachment)
@@ -210,8 +210,8 @@ print('PASS split CN assets: fragment/original checksums, missing/corrupt reject
 with tempfile.TemporaryDirectory() as temporary:
     cache = Path(temporary)
     data = b'program'
-    fixture = dict(name='retry', version='1', url='https://gitee.com/zenbardofsuhe/omarchy-xiaomipad9pm/releases/download/tools-v0.2.9/asset',
-                   cn_url='https://gitee.com/zenbardofsuhe/omarchy-xiaomipad9pm/releases/download/tools-v0.2.9/asset',
+    fixture = dict(name='retry', version='1', url='https://gitee.com/zenbardofsuhe/omarchy-xiaomi18fold/releases/download/tools-v0.2.9/asset',
+                   cn_url='https://gitee.com/zenbardofsuhe/omarchy-xiaomi18fold/releases/download/tools-v0.2.9/asset',
                    integrity='sha256-hex:' + hashlib.sha256(data).hexdigest())
     from unittest.mock import Mock
     opener = Mock()
@@ -237,7 +237,7 @@ with tempfile.TemporaryDirectory() as temporary:
     cache.mkdir()
     content = b'verified-program'
     tool = dict(name='fixture', version='1', url='https://github.com/upstream/file',
-                cn_url='https://gitee.com/zenbardofsuhe/omarchy-xiaomipad9pm/releases/download/tools-v0.2.9/file', integrity='sha256-hex:' + hashlib.sha256(content).hexdigest())
+                cn_url='https://gitee.com/zenbardofsuhe/omarchy-xiaomi18fold/releases/download/tools-v0.2.9/file', integrity='sha256-hex:' + hashlib.sha256(content).hexdigest())
     requests = []
     class Opener:
         def open(self, req, timeout):

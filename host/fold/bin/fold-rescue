@@ -1,0 +1,15 @@
+#!/bin/bash
+# fold-rescue (phone host): ALWAYS reset touchscreen first (crosvm stuck MT after Android
+# cancels 3/4-finger gestures), then run in-container fold-rescue (popups/display/shell/guard).
+# Usage: ssh droid@<fold> ~/fold-fix-tools/fold-rescue
+set -u
+DIR=$(dirname "$(readlink -f "$0" 2>/dev/null || echo "$0")")
+echo "fold-rescue: touch-reset (1/2)"
+"$DIR/fold-touch-reset" || echo "fold-rescue: touch-reset failed (continuing)" >&2
+sleep 0.2
+echo "fold-rescue: touch-reset (2/2)"
+"$DIR/fold-touch-reset" || true
+sleep 0.2
+# fold-ux9: make sure the automatic touch unstick daemon runs (systemd --user, enabled at boot)
+systemctl --user start fold-touch-flushd 2>/dev/null || true
+exec "$DIR/fx" 'fold-rescue'

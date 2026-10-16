@@ -1,0 +1,165 @@
+#!/usr/bin/python3 -I
+# fold-touch-flushd (phone host, root; started by systemd --user fold-touch-flushd.service via sudo)
+# fold-ux9: automatic "unstick" for the crosvm touchscreen, so a lost finger lift can no longer leave
+# hyprgrass in "inhibit all touches" (fold-ux7 root cause: popups / dock dead after 窗口管理).
+#
+# It never *presses* anything: it only injects the missing lift (ABS_MT_TRACKING_ID = -1) for kernel
+# MT slots that are still down although nothing moved on them, so no client sees an extra tap
+# (a full fold-touch-flush taps the screen corner, which closes omarchy-menu as "tap outside").
+#
+# Triggers
+#   * requests on the FIFO /run/user/1000/fold-touch-flush.fifo (bind-mounted into arch-desktop;
+#     written by ~/.local/bin/fold-touch-flush-req there): one line per request
+#       idle <reason>   within 2 s, lift slots that were already down when the request came and have
+#                       not changed for >= 1.5 s (fingers put down after the request are left alone)
+#                       (sent after every hyprgrass gesture and whenever a popup closes)
+#       flush <reason>  run the full ~/fold-fix-tools/fold-touch-flush now (manual use only)
+#   * backstop poll: slots unchanged for >= 4 s while 2+ fingers are down, or >= 10 s for a single
+#     finger, are lifted (the old fold-touch-watchdog did a udev reset after 2.5 s and hit long-presses)
+# Off switch for the backstop only: touch ~/.config/fold-touch-flushd-no-watch (requests still work)
+# Log: ~/.local/state/omarchy-alarm/fold-touch-flushd.log (host)
+import fcntl, glob, os, select, stat, struct, subprocess, time
+
+HOME = "/home/droid"
+FIFO = "/run/user/1000/fold-touch-flush.fifo"
+FLUSH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fold-touch-flush")
+LOG = HOME + "/.local/state/omarchy-alarm/fold-touch-flushd.log"
+NOWATCH = HOME + "/.config/fold-touch-flushd-no-watch"
+REQ_WAIT, REQ_STALE = 2.0, 1.5
+STALE_MULTI, STALE_SINGLE = 4.0, 10.0
+ABS_MT_SLOT, ABS_MT_X, ABS_MT_Y, ABS_MT_ID = 0x2F, 0x35, 0x36, 0x39
+
+
+def log(m):
+    line = f"{time.strftime('%F %T')} {m}\n"
+    new = not os.path.exists(LOG)
+    with open(LOG, "a") as f:
+        f.write(line)
+    if new:
+        os.chown(LOG, 1000, 100)
+
+
+def ioc(d, t, n, s): return (d << 30) | (s << 16) | (ord(t) << 8) | n
+
+
+def name(p):
+    fd = os.open(p, os.O_RDONLY); b = bytearray(256)
+    try:
+        fcntl.ioctl(fd, ioc(2, 'E', 6, 256), b)
+    finally:
+        os.close(fd)
+    return b.rstrip(b'\0').decode()
+
+
+def find_dev():
+    for p in sorted(glob.glob('/dev/input/event*')):
+        try:
+            if 'Touchscreen' in name(p):
+                return p
+        except OSError:
+            pass
+    return None
+
+
+def absinfo(fd, code):  # value, min, max, fuzz, flat, res
+    b = bytearray(24); fcntl.ioctl(fd, ioc(2, 'E', 0x40 + code, 24), b); return struct.unpack('6i', b)
+
+
+def mtslots(fd, code, n):  # EVIOCGMTSLOTS
+    b = bytearray(4 * (n + 1)); struct.pack_into('I', b, 0, code)
+    fcntl.ioctl(fd, ioc(2, 'E', 0x0a, len(b)), b)
+    return list(struct.unpack_from(f'{n}i', b, 4))
+
+
+def read_slots(dev):
+    """{slot: (tracking_id, x, y)} for every slot the kernel thinks is down."""
+    fd = os.open(dev, os.O_RDONLY)
+    try:
+        n = absinfo(fd, ABS_MT_SLOT)[2] + 1
+        ids, xs, ys = (mtslots(fd, c, n) for c in (ABS_MT_ID, ABS_MT_X, ABS_MT_Y))
+    finally:
+        os.close(fd)
+    return {i: (ids[i], xs[i], ys[i]) for i in range(n) if ids[i] >= 0}
+
+
+def lift(dev, slots):
+    fd = os.open(dev, os.O_RDWR)
+    try:
+        cur = absinfo(fd, ABS_MT_SLOT)[0]
+        ev = lambda t, c, v: os.write(fd, struct.pack('qqHHi', 0, 0, t, c, v))
+        for s in slots:
+            ev(3, ABS_MT_SLOT, s); ev(3, ABS_MT_ID, -1)
+        if not set(read_slots(dev)) - set(slots):
+            ev(1, 0x14a, 0)  # BTN_TOUCH up when nothing else is down
+        ev(3, ABS_MT_SLOT, cur)  # give the device its current slot back
+        ev(0, 0, 0)
+    finally:
+        os.close(fd)
+
+
+def main():
+    if os.path.exists(FIFO) and not stat.S_ISFIFO(os.stat(FIFO).st_mode):
+        os.unlink(FIFO)
+    if not os.path.exists(FIFO):
+        os.mkfifo(FIFO, 0o600)
+    os.chown(FIFO, 1000, 100)
+    rfd = os.open(FIFO, os.O_RDWR | os.O_NONBLOCK)  # RDWR: never sees EOF when writers go away
+    buf = b""
+    dev = find_dev()
+    log(f"start dev={dev} fifo={FIFO}")
+    seen = {}            # slot -> ((id, x, y), first time seen unchanged)
+    pending = None       # (deadline, reason, {slot: tracking id} down at request time)
+    while True:
+        r, _, _ = select.select([rfd], [], [], 0.25 if pending else 1.0)
+        now = time.monotonic()
+        if r:
+            try:
+                buf += os.read(rfd, 4096)
+            except BlockingIOError:
+                pass
+            *lines, buf = buf.split(b"\n")
+            for ln in lines:
+                kind, _, reason = ln.decode(errors="replace").strip().partition(" ")
+                if kind == "idle":
+                    if not pending:
+                        try:
+                            ids = {s: v[0] for s, v in read_slots(dev).items()} if dev else {}
+                        except OSError:
+                            ids = {}
+                        pending = (now + REQ_WAIT, reason, ids)
+                elif kind == "flush":
+                    rc = subprocess.run([FLUSH], capture_output=True, text=True, timeout=10)
+                    log(f"flush ({reason}): {rc.stdout.strip() or rc.stderr.strip()}")
+                    seen.clear()
+                elif kind:
+                    log(f"ignored request {ln[:80]!r}")
+        try:
+            dev = dev if dev and os.path.exists(dev) else find_dev()
+            slots = read_slots(dev) if dev else {}
+        except OSError:
+            dev, slots = None, {}
+            continue
+        seen = {s: (v, seen[s][1] if s in seen and seen[s][0] == v else now) for s, v in slots.items()}
+        age = {s: now - t for s, (_, t) in seen.items()}
+        stale, why = [], None
+        if pending and (not slots or now >= pending[0]):
+            stale = [s for s in slots if age[s] >= REQ_STALE and pending[2].get(s) == slots[s][0]]
+            why = f"request {pending[1]}"
+            if not stale:
+                log(f"{why}: clean ({len(slots)} live slot(s))")
+            pending = None
+        elif slots and not os.path.exists(NOWATCH):
+            lim = STALE_MULTI if len(slots) >= 2 else STALE_SINGLE
+            stale = [s for s in slots if age[s] >= lim]
+            why = f"watch {len(slots)} down >= {lim:.0f}s"
+        if stale:
+            try:
+                lift(dev, stale)
+                log(f"{why}: lifted stale slot(s) {stale} ids={[slots[s][0] for s in stale]}")
+            except OSError as e:
+                log(f"{why}: lift failed: {e}")
+            for s in stale:
+                seen.pop(s, None)
+
+
+main()

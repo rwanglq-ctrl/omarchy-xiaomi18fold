@@ -1,0 +1,12 @@
+[Unit]
+Description=Keep crosvm touchscreen range in sync with the AVF display size (fold/unfold)
+After=systemd-udevd.service seatd.service
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/fold-touch-sync
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

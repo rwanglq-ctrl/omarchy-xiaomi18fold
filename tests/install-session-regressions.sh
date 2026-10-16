@@ -30,7 +30,7 @@ esac
     assert p.returncode == 0 and not calls.exists(), p
     assert before == sorted(str(p) for p in w.rglob('*'))
     # An existing named session continues inline without creating/nesting tmux.
-    p = run('omarchy_install_session 0 /missing; echo CONTINUED', TMUX='fixture', SESSION='omarchy-install', OMARCHY_INSTALL_LOG='parent-log')
+    p = run('omarchy_install_session 0 /missing; echo CONTINUED', TMUX='fixture', SESSION='omarchy-fold-install', OMARCHY_INSTALL_LOG='parent-log')
     assert p.returncode == 0 and 'CONTINUED' in p.stdout, p
     assert calls.read_text().count('display-message') == 1
     assert 'new-session' not in calls.read_text()
@@ -38,15 +38,15 @@ esac
     p = run('omarchy_install_session 0 /missing; echo UNSAFE', TMUX='fixture', SESSION='other', OMARCHY_INSTALL_LOG='parent-log')
     assert p.returncode != 0 and 'Cannot verify inherited install session' in p.stderr and 'UNSAFE' not in p.stdout, p
     calls.unlink()
-    # Exact match prevents omarchy-install-old being mistaken for this session.
+    # Exact match prevents omarchy-fold-install-old being mistaken for this session.
     p = run('omarchy_install_session 0 /missing; echo DUPLICATE', EXISTS='1')
     assert p.returncode == 0 and 'DUPLICATE' not in p.stdout, p
-    assert calls.read_text() == 'has-session -t =omarchy-install\n'
+    assert calls.read_text() == 'has-session -t =omarchy-fold-install\n'
     assert not (home/'.local').exists()
     calls.unlink()
     # Switching from another tmux session must never attach/nest.
     p = run('omarchy_install_session 0 /missing', TMUX='fixture', SESSION='other', EXISTS='1')
-    assert p.returncode == 0 and 'switch-client -t =omarchy-install' in calls.read_text(), p
+    assert p.returncode == 0 and 'switch-client -t =omarchy-fold-install' in calls.read_text(), p
     assert '\nattach' not in calls.read_text()
     calls.unlink()
     # Detached runner preserves quoted args/settings even on an old tmux server.
@@ -57,14 +57,14 @@ exit 23
 ''')
     args = ['--profile=full', "a b;$(touch SHOULD-NOT-EXIST)'quote"]
     p = run('omarchy_install_session 0 '+shlex.quote(str(entry))+' '+shlex.join(args), OMARCHY_ALARM_REF='v-test')
-    assert p.returncode == 0 and 'new-session -d -s omarchy-install' in calls.read_text(), p
+    assert p.returncode == 0 and 'new-session -d -s omarchy-fold-install' in calls.read_text(), p
     runner = pathlib.Path((w/'runner').read_text().strip())
     text = runner.read_text()
     assert runner.stat().st_mode & 0o777 == 0o600
     assert 'export MIRROR=cn' in text and 'export OMARCHY_ALARM_REF=v-test' in text
     # Replace only the post-install interactive shell for this synchronous unit test.
     runner.write_text(text.replace('exec bash --noprofile --norc -i', 'exit "$rc"'))
-    p = subprocess.run(['bash',str(runner)], env=dict(env, TMUX='fixture', SESSION='omarchy-install', MIRROR='global'), text=True, capture_output=True, timeout=20)
+    p = subprocess.run(['bash',str(runner)], env=dict(env, TMUX='fixture', SESSION='omarchy-fold-install', MIRROR='global'), text=True, capture_output=True, timeout=20)
     assert p.returncode == 23, p
     log = home/'.local/state/omarchy-alarm/install.log'
     assert "ARGS=<"+args[0]+"><"+args[1]+"> MIRROR=cn REF=v-test" in log.read_text(), log.read_text()
@@ -99,7 +99,7 @@ printf 'ARGC=%s\\n' "$#"
     assert p.returncode == 0, p
     runner = pathlib.Path((w/'runner').read_text().strip())
     runner.write_text(runner.read_text().replace('exec bash --noprofile --norc -i', 'exit "$rc"'))
-    p = subprocess.run(['bash',str(runner)], env=dict(env, TMUX='fixture', SESSION='omarchy-install'), text=True, capture_output=True, timeout=20)
+    p = subprocess.run(['bash',str(runner)], env=dict(env, TMUX='fixture', SESSION='omarchy-fold-install'), text=True, capture_output=True, timeout=20)
     assert p.returncode == 0 and 'ARGC=0' in log.read_text(), p
     # Apt failure must explain the failed protection instead of continuing naked.
     p = run('''command() { if [[ $1 == -v && $2 == tmux ]]; then return 1; fi; builtin command "$@"; }
@@ -117,7 +117,7 @@ printf 'ENV=%s,%s,%s,%s\\n' "${MIRROR-unset}" "${OMARCHY_ALARM_REF-unset}" "${NE
     assert p.returncode == 0, p
     runner = pathlib.Path((w/'runner').read_text().strip())
     runner.write_text(runner.read_text().replace('exec bash --noprofile --norc -i', 'exit "$rc"'))
-    p = subprocess.run(['bash',str(runner)], env=dict(env, TMUX='fixture', SESSION='omarchy-install', MIRROR='stale-cn', OMARCHY_ALARM_REF='stale-ref', NETWORK_STALE='stale', TERM='tmux-256color'), text=True, capture_output=True, timeout=20)
+    p = subprocess.run(['bash',str(runner)], env=dict(env, TMUX='fixture', SESSION='omarchy-fold-install', MIRROR='stale-cn', OMARCHY_ALARM_REF='stale-ref', NETWORK_STALE='stale', TERM='tmux-256color'), text=True, capture_output=True, timeout=20)
     assert p.returncode == 0 and 'ENV=unset,unset,unset,tmux-256color' in log.read_text(), p
     # A piped run can reconstruct itself before cloning, with no source file.
     p = run('omarchy_install_session 0 "" --profile core')
